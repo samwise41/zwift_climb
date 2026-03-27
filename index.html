@@ -249,9 +249,12 @@
                             prevWatts: Math.round(match.average_watts || 0),
                             targetCumSec: null, targetPower: null
                         });
-                    } else {
-                        missingSegments.push(targetName);
-                    }
+                } else {
+                    console.warn("⚠️ Missing Sub-Segments:", missingSegments);
+                    console.log("📝 Available Strava Segments in this activity:", segmentEfforts.map(s => s.name));
+                    statusEl.innerText = `⚠️ Missing ${missingSegments.length} hairpins. Check console for details.`;
+                    statusEl.classList.add("behind");
+                }
                 }
 
                 if (missingSegments.length === 0) {
