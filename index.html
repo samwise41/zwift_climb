@@ -21,17 +21,16 @@
         h2 { text-align: center; margin: 0 0 10px 0; color: var(--zwift-orange); font-size: 1.5em; }
         
         /* Strava Auth & Data Settings Zone */
-        #strava-auth-zone { text-align: center; margin-bottom: 15px; }
+        #strava-auth-zone { text-align: center; margin-bottom: 10px; }
         .strava-btn { background-color: #fc4c02; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; cursor: pointer; border: none;}
         .strava-btn:active { background-color: #e34402; }
-        .status-text { font-weight: bold; display: none; margin-bottom: 10px; padding: 8px; border-radius: 4px; background-color: var(--bg-panel); }
+        .status-text { font-weight: bold; display: none; margin-bottom: 10px; padding: 8px; border-radius: 4px; background-color: var(--bg-panel); text-align: center;}
 
         /* Calculator Styles */
         .calculator-box { background-color: #ffffff; color: #0f172a; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .calc-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
         .calc-input { background: #f1f5f9; border: 1px solid #94a3b8; color: #0f172a; padding: 8px; border-radius: 4px; font-size: 1em; width: 100%; max-width: 140px; font-weight: bold; }
         .calc-btn { background-color: var(--target-blue); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: opacity 0.2s;}
-        .calc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         
         /* Slider Styles */
         .slider-container { display: flex; flex-direction: column; gap: 5px; width: 100%; }
@@ -46,9 +45,13 @@
         #startBtn { background-color: var(--zwift-orange); color: white; border: none; padding: 12px 25px; font-size: 1.2em; border-radius: 8px; font-weight: bold; cursor: pointer; transition: opacity 0.2s;}
         #startBtn:disabled { opacity: 0.5; cursor: not-allowed; }
         
-        .charts-section { display: flex; flex-direction: column; gap: 15px; }
+        /* Grid for Desktop Side-by-Side Charts */
+        .charts-section { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        @media (min-width: 768px) {
+            .charts-section { grid-template-columns: 1fr 1fr; }
+        }
         .chart-container { background-color: #ffffff; border-radius: 8px; padding: 10px; border: 1px solid #cbd5e1; height: 180px; }
-        .chart-title { text-align: center; font-size: 0.85em; color: #475569; font-weight: bold; }
+        .chart-title { text-align: center; font-size: 0.85em; color: #475569; font-weight: bold; margin-bottom: 5px; }
         
         /* Segments */
         .segment { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1e293b; }
@@ -72,28 +75,31 @@
         
         <div id="strava-auth-zone">
             <a href="/api/auth" id="strava-btn" class="strava-btn" target="_top">Connect Strava to fetch PR</a>
-            <div id="strava-status" class="status-text"></div>
         </div>
+        <div id="strava-status" class="status-text"></div>
 
-        <div id="data-settings-box" class="calculator-box" style="display: none; background-color: #f8fafc;">
-            <div class="calc-row">
-                <label style="font-weight: bold;">Select Climb:</label>
-                <select id="climbSelect" class="calc-input"></select>
+        <div id="settings-container" style="display: none; margin-bottom: 15px;">
+            <button onclick="toggleSettings()" style="width: 100%; background: #334155; color: white; border: 1px solid #475569; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold;">⚙️ Data Settings</button>
+            <div id="data-settings-box" class="calculator-box" style="display: none; margin-top: 10px; background-color: #f8fafc; margin-bottom: 0;">
+                <div class="calc-row">
+                    <label style="font-weight: bold;">Select Climb:</label>
+                    <select id="climbSelect" class="calc-input"></select>
+                </div>
+                <div class="calc-row">
+                    <label style="font-weight: bold;">Data to Grab:</label>
+                    <select id="attemptSelect" class="calc-input">
+                        <option value="best">Best (Last 50)</option>
+                        <option value="recent">Most Recent</option>
+                    </select>
+                </div>
+                <button class="calc-btn" style="background-color: var(--zwift-orange);" onclick="fetchUserData()">Fetch My Data</button>
             </div>
-            <div class="calc-row">
-                <label style="font-weight: bold;">Data to Grab:</label>
-                <select id="attemptSelect" class="calc-input">
-                    <option value="best">Best (Last 50)</option>
-                    <option value="recent">Most Recent</option>
-                </select>
-            </div>
-            <button class="calc-btn" style="background-color: var(--zwift-orange);" onclick="fetchUserData()">Fetch My Data</button>
         </div>
 
         <div class="calculator-box">
             <div class="calc-row">
                 <label style="font-weight: bold;">Target Time:</label>
-                <input type="text" id="targetTimeInput" class="calc-input" placeholder="00:00" value="00:00" style="text-align: center; max-width: 80px;">
+                <input type="text" id="targetTimeInput" class="calc-input" placeholder="00:00" value="00:00" style="text-align: center; max-width: 80px;" oninput="applyNewTarget()">
             </div>
             
             <div class="slider-container">
@@ -102,10 +108,8 @@
                     <span>Even</span>
                     <span>Neg Split (End Fast)</span>
                 </div>
-                <input type="range" id="splitSlider" min="-10" max="10" value="0">
+                <input type="range" id="splitSlider" min="-10" max="10" value="0" oninput="applyNewTarget()">
             </div>
-            
-            <button class="calc-btn" id="calcBtn" onclick="applyNewTarget()" disabled>Calculate Pacing Plan</button>
         </div>
 
         <div id="controls">
@@ -118,8 +122,14 @@
 
         <div class="charts-section">
             <div class="chart-container">
-                <div class="chart-title">PACING TREND: Time Ahead (+)</div>
-                <div style="position: relative; height: 140px; width: 100%;">
+                <div class="chart-title">TARGET POWER (W)</div>
+                <div style="position: relative; height: 130px; width: 100%;">
+                    <canvas id="powerChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">RIDE TREND: Time Ahead (+)</div>
+                <div style="position: relative; height: 130px; width: 100%;">
                     <canvas id="pacingTrendChart"></canvas>
                 </div>
             </div>
@@ -129,7 +139,7 @@
     <div id="segmentList"></div>
 
     <script>
-        // --- 1. Safe Storage Wrapper (Prevents all iframe storage crashes) ---
+        // --- 1. Safe Storage Wrapper ---
         const safeStorage = {
             set: function(key, val) { try { window.localStorage.setItem(key, val); } catch(e) {} },
             get: function(key) { try { return window.localStorage.getItem(key); } catch(e) { return null; } },
@@ -150,18 +160,22 @@
         let actualCumSecData = [];
         let trendData = [];
         let pacingTrendChart;
+        let powerChart;
+
+        // --- UI Toggles ---
+        function toggleSettings() {
+            const box = document.getElementById('data-settings-box');
+            box.style.display = box.style.display === 'none' ? 'flex' : 'none';
+        }
 
         // --- 3. Auth & Persistence Logic ---
         function initAuth() {
             let urlToken = null;
-            
-            // Step 1: Look for token in the current iframe URL
             try {
                 const urlParams = new URLSearchParams(window.location.search);
                 urlToken = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
             } catch(e) {}
 
-            // Step 2: Look for token in the parent window URL (if trapped in iframe)
             if (!urlToken) {
                 try {
                     const parentParams = new URLSearchParams(window.parent.location.search);
@@ -169,17 +183,13 @@
                 } catch(e) {}
             }
 
-            // Step 3: Handle the token
             if (urlToken) {
                 stravaAccessToken = urlToken;
                 const expiryTime = Date.now() + (5.5 * 60 * 60 * 1000); 
                 safeStorage.set('strava_token', urlToken);
                 safeStorage.set('strava_expiry', expiryTime.toString());
-                
-                // Try to clean the URL up
                 try { window.history.replaceState({}, document.title, window.location.pathname); } catch(e) {}
             } else {
-                // Check memory for unexpired token
                 const storedToken = safeStorage.get('strava_token');
                 const storedExpiry = safeStorage.get('strava_expiry');
                 if (storedToken && storedExpiry && Date.now() < parseInt(storedExpiry)) {
@@ -190,13 +200,12 @@
                 }
             }
 
-            // Step 4: Update UI
             if (stravaAccessToken) {
                 document.getElementById('strava-btn').style.display = 'none';
-                document.getElementById('data-settings-box').style.display = 'flex';
+                document.getElementById('settings-container').style.display = 'block';
             } else {
                 document.getElementById('strava-btn').style.display = 'inline-block';
-                document.getElementById('data-settings-box').style.display = 'none';
+                document.getElementById('settings-container').style.display = 'none';
             }
         }
 
@@ -231,7 +240,6 @@
             document.getElementById('main-title').innerText = `${climb.name} Pacer`;
             document.getElementById('targetTimeInput').value = climb.defaultTime;
             
-            document.getElementById('calcBtn').disabled = true;
             document.getElementById('startBtn').disabled = true;
             document.getElementById('strava-status').style.display = 'none';
 
@@ -261,14 +269,13 @@
                 });
                 let effortsData = await effortsRes.json();
 
-                // Token validation check
                 if (effortsData.message === "Authorization Error" || effortsRes.status === 401) {
                     safeStorage.remove('strava_token'); 
                     safeStorage.remove('strava_expiry');
                     statusEl.innerText = `❌ Session expired. Please reconnect to Strava.`;
                     statusEl.classList.add("behind");
                     document.getElementById('strava-btn').style.display = 'inline-block';
-                    document.getElementById('data-settings-box').style.display = 'none';
+                    document.getElementById('settings-container').style.display = 'none';
                     return;
                 }
 
@@ -296,7 +303,6 @@
                 let personalizedSegments = [];
                 let missingSegments = [];
 
-                // Smart Regex Matching
                 for (let targetName of currentClimb.subSegments) {
                     const regex = new RegExp("\\b" + targetName + "(?:\\b|\\s|$)", "i");
                     const match = segmentEfforts.find(seg => regex.test(seg.name));
@@ -315,19 +321,18 @@
 
                 if (missingSegments.length === 0) {
                     baseSegments = personalizedSegments; 
-                    isDataLoaded = true; // Unlock the UI!
+                    isDataLoaded = true; 
                     
-                    document.getElementById('calcBtn').disabled = false;
                     document.getElementById('startBtn').disabled = false;
+                    document.getElementById('data-settings-box').style.display = 'none'; // Auto-collapse on success
 
-                    applyNewTarget(); // Calculate and populate targets
+                    applyNewTarget(); 
                     
                     statusEl.innerText = `✓ ${attemptType === 'best' ? 'PR' : 'Recent'} Loaded! Ready to pace.`;
                     statusEl.classList.add("ahead");
                 } else {
                     console.warn("⚠️ Missing Sub-Segments:", missingSegments);
-                    console.log("📝 Available Strava Segments in this activity:", segmentEfforts.map(s => s.name));
-                    statusEl.innerText = `⚠️ Missing ${missingSegments.length} hairpins. Check console for details.`;
+                    statusEl.innerText = `⚠️ Missing ${missingSegments.length} hairpins. Check browser console.`;
                     statusEl.classList.add("behind");
                 }
             } catch (error) {
@@ -337,10 +342,14 @@
             }
         }
 
-        // --- 6. Pacing Calculator Logic ---
+        // --- 6. Pacing Calculator Logic (Real-Time) ---
         function parseTimeToSeconds(timeStr) {
+            if(!timeStr) return 0;
             const parts = timeStr.split(':');
-            return (parseInt(parts[0]) * 60) + parseInt(parts[1]);
+            if (parts.length === 2) {
+                return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+            }
+            return (parseInt(parts[0]) || 0) * 60;
         }
 
         function formatTime(totalSeconds) {
@@ -358,6 +367,8 @@
             }
 
             const targetSeconds = parseTimeToSeconds(document.getElementById('targetTimeInput').value);
+            if (targetSeconds <= 0) return; // Prevent breaking math if input is empty
+
             const sliderVal = parseInt(document.getElementById('splitSlider').value) / 100;
 
             const historicalTotal = baseSegments.reduce((sum, s) => sum + s.prevSegSec, 0);
@@ -485,7 +496,7 @@
                 div.innerHTML = `
                     <div class="segment-info">
                         <div class="segment-name">${seg.name}</div>
-                        <div class="segment-target">Target: ${targetTimeStr} (${targetSegTimeStr}) @ ${targetPowerStr}</div>
+                        <div class="segment-target" style="color: var(--target-blue); font-weight: bold;">Target: ${targetTimeStr} (${targetSegTimeStr}) @ ${targetPowerStr}</div>
                         <div class="prev-data-row">Prev: ${prevTimeStr} (${prevSegTimeStr}) @ ${prevPowerStr}</div>
                     </div>
                     <div class="segment-action" id="action-${index}"></div>
@@ -497,10 +508,34 @@
         }
 
         function initCharts() {
-            if(pacingTrendChart) pacingTrendChart.destroy();
-            const ctxTrend = document.getElementById('pacingTrendChart').getContext('2d');
             const chartLabels = activeSegments.map((seg, i) => i === 0 ? "Start" : i === activeSegments.length - 1 ? "Finish" : "S" + (i));
             
+            // Render Target Power Bar Chart (Updates instantly when sliding)
+            const powerData = activeSegments.map(seg => seg.targetPower || 0);
+            
+            if(powerChart) powerChart.destroy();
+            const ctxPower = document.getElementById('powerChart').getContext('2d');
+            powerChart = new Chart(ctxPower, {
+                type: 'bar',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: 'Target Watts',
+                        data: powerData,
+                        backgroundColor: '#3daee9',
+                        borderRadius: 4
+                    }]
+                },
+                options: { 
+                    responsive: true, maintainAspectRatio: false, 
+                    plugins: { legend: { display: false } },
+                    scales: { y: { ticks: { color: '#64748b' }, grid: { color: '#e2e8f0' } }, x: { ticks: { color: '#64748b' }, grid: { display: false } } }
+                }
+            });
+
+            // Render Time-Ahead Trend Line Chart (Populates during ride)
+            if(pacingTrendChart) pacingTrendChart.destroy();
+            const ctxTrend = document.getElementById('pacingTrendChart').getContext('2d');
             pacingTrendChart = new Chart(ctxTrend, {
                 type: 'line',
                 data: {
