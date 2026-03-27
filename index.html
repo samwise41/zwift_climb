@@ -209,6 +209,17 @@
                 });
                 let effortsData = await effortsRes.json();
 
+                // Check if Strava rejected our token
+                if (effortsData.message === "Authorization Error" || effortsRes.status === 401) {
+                    localStorage.removeItem('strava_token');
+                    localStorage.removeItem('strava_expiry');
+                    statusEl.innerText = `❌ Session expired. Please reconnect to Strava.`;
+                    statusEl.classList.add("behind");
+                    document.getElementById('strava-btn').style.display = 'inline-block';
+                    document.getElementById('data-settings-box').style.display = 'none';
+                    return;
+                }
+
                 if (!effortsData || effortsData.length === 0 || effortsData.errors) {
                     statusEl.innerText = `❌ No efforts found for ${currentClimb.name}.`;
                     statusEl.classList.add("behind");
