@@ -144,10 +144,64 @@
         let trendData = [];
         let pacingTrendChart;
 
-        // --- 2. Initialization & Local Storage ---
+        // --- 2. Auth & Persistence Logic (Safe for iFrames) ---
+        function initAuth() {
+            try {
+                // 1. Check URL for token (from redirect)
+                const urlParams = new URLSearchParams(window.location.search);
+                let urlToken = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
+                
+                // Fallback: Check parent URL if trapped in a same-origin iframe
+                if (!urlToken) {
+                    try {
+                        const parentParams = new URLSearchParams(window.parent.location.search);
+                        urlToken = parentParams.get('access_token') || parentParams.get('code') || parentParams.get('token');
+                    } catch(e) { /* Ignore cross-origin errors */ }
+                }
+
+                if (urlToken) {
+                    stravaAccessToken = urlToken;
+                    // Safely try to store it, catch the DOMException if blocked
+                    try {
+                        const expiryTime = Date.now() + (5.5 * 60 * 60 * 1000); 
+                        localStorage.setItem('strava_token', urlToken);
+                        localStorage.setItem('strava_expiry', expiryTime);
+                    } catch(e) {
+                        console.warn("Storage blocked by browser (likely iframe). Token is active but won't persist after refresh.");
+                    }
+                    
+                    // Clean the URL visually if possible
+                    try { window.history.replaceState({}, document.title, window.location.pathname); } catch(e) {}
+                } else {
+                    // 2. No URL token. Safely check memory.
+                    try {
+                        const storedToken = localStorage.getItem('strava_token');
+                        const storedExpiry = localStorage.getItem('strava_expiry');
+                        if (storedToken && storedExpiry && Date.now() < parseInt(storedExpiry)) {
+                            stravaAccessToken = storedToken;
+                        } else {
+                            localStorage.removeItem('strava_token');
+                            localStorage.removeItem('strava_expiry');
+                        }
+                    } catch (e) { /* Storage blocked, ignore */ }
+                }
+
+                // 3. Update the UI based on Auth state
+                if (stravaAccessToken) {
+                    document.getElementById('strava-btn').style.display = 'none';
+                    document.getElementById('data-settings-box').style.display = 'flex';
+                } else {
+                    document.getElementById('strava-btn').style.display = 'inline-block';
+                    document.getElementById('data-settings-box').style.display = 'none';
+                }
+            } catch (err) {
+                console.error("Auth init crashed: ", err);
+            }
+        }
+
+        // --- 3. Configuration & JSON Loader ---
         async function loadSegmentsConfig() {
             try {
-                // Fetch the segments list you stored in GitHub
                 const res = await fetch('./segments.json?t=' + Date.now());
                 climbsConfig = await res.json();
                 
@@ -161,7 +215,6 @@
 
                 selectEl.addEventListener('change', (e) => loadClimbSkeleton(climbsConfig[e.target.value]));
                 
-                // Load the first climb as the default skeleton
                 if(climbsConfig.length > 0) {
                     loadClimbSkeleton(climbsConfig[0]);
                 }
@@ -181,16 +234,15 @@
             document.getElementById('startBtn').disabled = true;
             document.getElementById('strava-status').style.display = 'none';
 
-            // Build empty skeleton array based on the chosen climb's sub-segments
             baseSegments = climb.subSegments.map(name => ({
                 name: name,
                 targetCumSec: null, targetPower: null, prevSegSec: null, prevWatts: null
             }));
             
-            applyNewTarget(); // Render the empty UI
+            applyNewTarget(); 
         }
 
-        // --- 3. Strava API Fetcher ---
+        // --- 4. Strava API Fetcher ---
         async function fetchUserData() {
             if (!stravaAccessToken || !currentClimb) return;
 
@@ -203,16 +255,14 @@
             const fetchLimit = attemptType === 'best' ? 50 : 1;
 
             try {
-                // Step A: Search Segment Efforts
                 const effortsRes = await fetch(`https://www.strava.com/api/v3/segment_efforts?segment_id=${currentClimb.id}&per_page=${fetchLimit}`, {
                     headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
                 });
                 let effortsData = await effortsRes.json();
 
-                // Check if Strava rejected our token
+                // Token validation check
                 if (effortsData.message === "Authorization Error" || effortsRes.status === 401) {
-                    localStorage.removeItem('strava_token');
-                    localStorage.removeItem('strava_expiry');
+                    try { localStorage.removeItem('strava_token'); localStorage.removeItem('strava_expiry'); } catch(e){}
                     statusEl.innerText = `❌ Session expired. Please reconnect to Strava.`;
                     statusEl.classList.add("behind");
                     document.getElementById('strava-btn').style.display = 'inline-block';
@@ -226,7 +276,6 @@
                     return;
                 }
 
-                // If looking for the Best, sort the 50 results by fastest time
                 if (attemptType === 'best') {
                     effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
                 }
@@ -236,7 +285,6 @@
 
                 statusEl.innerText = `⏳ Loading full activity to map the segments...`;
 
-                // Step B: Fetch Full Activity to map sub-segments
                 const activityRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
                     headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
                 });
@@ -244,12 +292,10 @@
                 const segmentEfforts = activityData.segment_efforts;
 
                 let personalizedSegments = [];
-
-                // Match Strava's data against your segments.json list
                 let missingSegments = [];
+
+                // Smart Regex Matching
                 for (let targetName of currentClimb.subSegments) {
-                    // Smart regex to find your name inside Strava's longer name
-                    // \b prevents "2 to 1" from matching "12 to 11"
                     const regex = new RegExp("\\b" + targetName + "(?:\\b|\\s|$)", "i");
                     const match = segmentEfforts.find(seg => regex.test(seg.name));
                     
@@ -260,19 +306,12 @@
                             prevWatts: Math.round(match.average_watts || 0),
                             targetCumSec: null, targetPower: null
                         });
-                } else {
-                    console.warn("⚠️ Missing Sub-Segments:", missingSegments);
-                    console.log("📝 Available Strava Segments in this activity:", segmentEfforts.map(s => s.name));
-                    statusEl.innerText = `⚠️ Missing ${missingSegments.length} hairpins. Check console for details.`;
-                    statusEl.classList.add("behind");
-                }
+                    } else {
+                        missingSegments.push(targetName);
+                    }
                 }
 
                 if (missingSegments.length === 0) {
-                    baseSegments = personalizedSegments; 
-                    isDataLoaded = true; // Unlock the UI!
-
-                if (personalizedSegments.length === currentClimb.subSegments.length) {
                     baseSegments = personalizedSegments; 
                     isDataLoaded = true; // Unlock the UI!
                     
@@ -284,7 +323,9 @@
                     statusEl.innerText = `✓ ${attemptType === 'best' ? 'PR' : 'Recent'} Loaded! Ready to pace.`;
                     statusEl.classList.add("ahead");
                 } else {
-                    statusEl.innerText = `⚠️ Found activity, but some sub-segments were missing.`;
+                    console.warn("⚠️ Missing Sub-Segments:", missingSegments);
+                    console.log("📝 Available Strava Segments in this activity:", segmentEfforts.map(s => s.name));
+                    statusEl.innerText = `⚠️ Missing ${missingSegments.length} hairpins. Check console for details.`;
                     statusEl.classList.add("behind");
                 }
             } catch (error) {
@@ -294,44 +335,7 @@
             }
         }
 
-        // --- Auth Persistence Logic ---
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlToken = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
-        
-        if (urlToken) {
-            // 1. User just logged in. Save token and set expiration to 5.5 hours (Strava tokens expire in 6)
-            stravaAccessToken = urlToken;
-            const expiryTime = Date.now() + (5.5 * 60 * 60 * 1000); 
-            localStorage.setItem('strava_token', urlToken);
-            localStorage.setItem('strava_expiry', expiryTime);
-            
-            // Clean the URL so it looks nice
-            window.history.replaceState({}, document.title, window.location.pathname);
-        } else {
-            // 2. No token in URL. Check memory.
-            const storedToken = localStorage.getItem('strava_token');
-            const storedExpiry = localStorage.getItem('strava_expiry');
-            
-            if (storedToken && storedExpiry && Date.now() < parseInt(storedExpiry)) {
-                // Memory has a valid, unexpired token!
-                stravaAccessToken = storedToken;
-            } else {
-                // Token is expired or doesn't exist. Clear memory just in case.
-                localStorage.removeItem('strava_token');
-                localStorage.removeItem('strava_expiry');
-            }
-        }
-
-        // 3. Update the UI based on whether we have a valid token
-        if (stravaAccessToken) {
-            document.getElementById('strava-btn').style.display = 'none';
-            document.getElementById('data-settings-box').style.display = 'flex'; // Reveal the settings!
-        } else {
-            document.getElementById('strava-btn').style.display = 'inline-block';
-            document.getElementById('data-settings-box').style.display = 'none';
-        }
-
-        // --- 4. Pacing Calculator Logic ---
+        // --- 5. Pacing Calculator Logic ---
         function parseTimeToSeconds(timeStr) {
             const parts = timeStr.split(':');
             return (parseInt(parts[0]) * 60) + parseInt(parts[1]);
@@ -347,7 +351,7 @@
 
         function applyNewTarget() {
             if (!isDataLoaded) {
-                renderList(); // Just render the empty skeleton
+                renderList(); 
                 return;
             }
 
@@ -382,7 +386,7 @@
             renderList();
         }
 
-        // --- 5. UI & Ride Logic ---
+        // --- 6. UI & Ride Logic ---
         function resetRide() {
             clearInterval(timerInterval);
             timerInterval = null;
@@ -514,6 +518,7 @@
         }
 
         // Kick off the app
+        initAuth();
         loadSegmentsConfig();
 
     </script>
