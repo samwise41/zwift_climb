@@ -21,8 +21,9 @@
         
         h2 { text-align: center; margin: 0 0 10px 0; color: var(--zwift-orange); font-size: 1.5em; display: flex; justify-content: center; align-items: center; gap: 10px;}
         
-        /* Help Icon & Modal */
+        /* Help Modal & Backdrop */
         .help-icon { background: #cbd5e1; color: #0f172a; border-radius: 50%; width: 22px; height: 22px; font-size: 0.7em; display: flex; justify-content: center; align-items: center; cursor: pointer; font-weight: bold;}
+        .modal-backdrop { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999; }
         .help-modal { display: none; position: fixed; top: 10%; left: 50%; transform: translateX(-50%); background: #ffffff; color: #0f172a; padding: 20px; border-radius: 8px; z-index: 1000; width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 2px solid var(--zwift-orange);}
         .help-modal h3 { margin-top: 0; color: var(--zwift-orange); }
         .help-modal ul { padding-left: 20px; font-size: 0.95em; line-height: 1.5;}
@@ -38,12 +39,15 @@
         .calculator-box { background-color: #ffffff; color: #0f172a; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .calc-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
         .calc-input { background: #f1f5f9; border: 1px solid #94a3b8; color: #0f172a; padding: 8px; border-radius: 4px; font-size: 1em; width: 100%; max-width: 140px; font-weight: bold; }
+        .calc-input:disabled { opacity: 0.6; cursor: not-allowed; }
         .calc-btn { background-color: var(--target-blue); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
+        .calc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         
         /* Slider Styles */
         .slider-container { display: flex; flex-direction: column; gap: 5px; width: 100%; }
         .slider-labels { display: flex; justify-content: space-between; font-size: 0.8em; color: #475569; font-weight: bold; }
         input[type=range] { width: 100%; accent-color: var(--zwift-orange); }
+        input[type=range]:disabled { opacity: 0.6; cursor: not-allowed; }
 
         /* Timer Controls */
         #controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; background-color: #ffffff; padding: 10px 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);}
@@ -96,6 +100,7 @@
 </head>
 <body>
 
+    <div id="modalBackdrop" class="modal-backdrop" onclick="closeHelp()"></div>
     <div id="helpModal" class="help-modal">
         <h3>How to use the Pacer</h3>
         <ul>
@@ -105,11 +110,11 @@
             <li><b>Track Splits:</b> Press "Split" every time you complete a sub-segment (like a hairpin bend).</li>
             <li><b>Record Power:</b> (Optional) Type your average wattage into the box for that split to map your performance on the Comparison Chart!</li>
         </ul>
-        <button class="close-help" onclick="document.getElementById('helpModal').style.display='none'">Got it!</button>
+        <button class="close-help" onclick="closeHelp()">Got it!</button>
     </div>
 
     <div class="sticky-zone">
-        <h2 id="main-title">Climb Pacer <div class="help-icon" onclick="document.getElementById('helpModal').style.display='block'">?</div></h2>
+        <h2 id="main-title">Climb Pacer <div class="help-icon" onclick="openHelp()">?</div></h2>
         
         <div id="strava-auth-zone">
             <a href="/api/auth" id="strava-btn" class="strava-btn" target="_top">Connect Strava to fetch PR</a>
@@ -117,8 +122,8 @@
         <div id="strava-status" class="status-text"></div>
 
         <div id="settings-container" style="display: none; margin-bottom: 15px;">
-            <button onclick="toggleSettings()" style="width: 100%; background: #334155; color: white; border: 1px solid #475569; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold;">⚙️ Data Settings</button>
-            <div id="data-settings-box" class="calculator-box" style="display: none; margin-top: 10px; background-color: #f8fafc; margin-bottom: 0;">
+            <button id="toggleSettingsBtn" onclick="toggleSettings()" style="width: 100%; background: #334155; color: white; border: 1px solid #475569; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold;">▼ Hide Settings</button>
+            <div id="data-settings-box" class="calculator-box" style="display: flex; margin-top: 10px; background-color: #f8fafc; margin-bottom: 0;">
                 <div class="calc-row">
                     <label style="font-weight: bold;">Select Climb:</label>
                     <select id="climbSelect" class="calc-input"></select>
@@ -130,23 +135,25 @@
                         <option value="recent">Most Recent</option>
                     </select>
                 </div>
-                <button class="calc-btn" style="background-color: var(--zwift-orange);" onclick="fetchUserData()">Fetch My Data</button>
+                <button id="fetchBtn" class="calc-btn" style="background-color: var(--zwift-orange);" onclick="fetchUserData()">Fetch My Data</button>
+                
+                <hr style="border: 0; border-top: 1px solid #cbd5e1; width: 100%; margin: 5px 0;">
+                
+                <div class="slider-container">
+                    <div class="slider-labels">
+                        <span>Pos Split (Start Fast)</span>
+                        <span>Even</span>
+                        <span>Neg Split (End Fast)</span>
+                    </div>
+                    <input type="range" id="splitSlider" min="-10" max="10" value="0" oninput="applyNewTarget()">
+                </div>
             </div>
         </div>
 
-        <div class="calculator-box">
+        <div class="calculator-box" id="target-time-box">
             <div class="calc-row">
                 <label style="font-weight: bold;">Target Time:</label>
                 <input type="text" id="targetTimeInput" class="calc-input" placeholder="00:00" value="00:00" style="text-align: center; max-width: 80px;" oninput="applyNewTarget()">
-            </div>
-            
-            <div class="slider-container">
-                <div class="slider-labels">
-                    <span>Pos Split (Start Fast)</span>
-                    <span>Even</span>
-                    <span>Neg Split (End Fast)</span>
-                </div>
-                <input type="range" id="splitSlider" min="-10" max="10" value="0" oninput="applyNewTarget()">
             </div>
         </div>
 
@@ -176,14 +183,32 @@
     <div id="segmentList"></div>
 
     <script>
-        // --- 1. Safe Storage Wrapper ---
+        // --- Navigation Safety Warning ---
+        window.addEventListener('beforeunload', function (e) {
+            if (startTime) { // If ride is active
+                e.preventDefault();
+                e.returnValue = 'Ride in progress! Are you sure you want to leave?';
+            }
+        });
+
+        // --- Help Modal Functions ---
+        function openHelp() {
+            document.getElementById('helpModal').style.display = 'block';
+            document.getElementById('modalBackdrop').style.display = 'block';
+        }
+        function closeHelp() {
+            document.getElementById('helpModal').style.display = 'none';
+            document.getElementById('modalBackdrop').style.display = 'none';
+        }
+
+        // --- Safe Storage Wrapper ---
         const safeStorage = {
             set: function(key, val) { try { window.localStorage.setItem(key, val); } catch(e) {} },
             get: function(key) { try { return window.localStorage.getItem(key); } catch(e) { return null; } },
             remove: function(key) { try { window.localStorage.removeItem(key); } catch(e) {} }
         };
 
-        // --- 2. Core State ---
+        // --- Core State ---
         let stravaAccessToken = null;
         let climbsConfig = [];
         let currentClimb = null;
@@ -206,10 +231,17 @@
 
         function toggleSettings() {
             const box = document.getElementById('data-settings-box');
-            box.style.display = box.style.display === 'none' ? 'flex' : 'none';
+            const btn = document.getElementById('toggleSettingsBtn');
+            if (box.style.display === 'none') {
+                box.style.display = 'flex';
+                btn.innerHTML = '▼ Hide Settings';
+            } else {
+                box.style.display = 'none';
+                btn.innerHTML = '▶ Show Settings';
+            }
         }
 
-        // --- 3. Auth & Persistence Logic ---
+        // --- Auth & Persistence Logic ---
         function initAuth() {
             let urlToken = null;
             try {
@@ -244,13 +276,15 @@
             if (stravaAccessToken) {
                 document.getElementById('strava-btn').style.display = 'none';
                 document.getElementById('settings-container').style.display = 'block';
+                document.getElementById('data-settings-box').style.display = 'flex'; // Ensure open initially
+                document.getElementById('toggleSettingsBtn').innerHTML = '▼ Hide Settings';
             } else {
                 document.getElementById('strava-btn').style.display = 'inline-block';
                 document.getElementById('settings-container').style.display = 'none';
             }
         }
 
-        // --- 4. Configuration & JSON Loader ---
+        // --- Configuration & JSON Loader ---
         async function loadSegmentsConfig() {
             try {
                 const res = await fetch('./segments.json?t=' + Date.now());
@@ -278,7 +312,7 @@
         function loadClimbSkeleton(climb) {
             currentClimb = climb;
             isDataLoaded = false;
-            document.getElementById('main-title').innerHTML = `${climb.name} Pacer <div class="help-icon" onclick="document.getElementById('helpModal').style.display='block'">?</div>`;
+            document.getElementById('main-title').innerHTML = `${climb.name} Pacer <div class="help-icon" onclick="openHelp()">?</div>`;
             document.getElementById('targetTimeInput').value = climb.defaultTime;
             
             document.getElementById('startBtn').disabled = true;
@@ -292,7 +326,7 @@
             applyNewTarget(); 
         }
 
-        // --- 5. Strava API Fetcher ---
+        // --- Strava API Fetcher ---
         async function fetchUserData() {
             if (!stravaAccessToken || !currentClimb) return;
 
@@ -365,7 +399,10 @@
                     isDataLoaded = true; 
                     
                     document.getElementById('startBtn').disabled = false;
+                    
+                    // Auto-collapse settings cleanly
                     document.getElementById('data-settings-box').style.display = 'none'; 
+                    document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
 
                     applyNewTarget(); 
                     
@@ -383,7 +420,7 @@
             }
         }
 
-        // --- 6. Pacing Calculator Logic ---
+        // --- Pacing Calculator Logic ---
         function parseTimeToSeconds(timeStr) {
             if(!timeStr) return 0;
             const parts = timeStr.split(':');
@@ -450,20 +487,20 @@
                 return { ...seg, targetCumSec: cumulativeSec, targetPower: newPower };
             });
 
-            document.getElementById('main-title').innerHTML = `${currentClimb.name} (${formatTime(targetSeconds)}) <div class="help-icon" onclick="document.getElementById('helpModal').style.display='block'">?</div>`;
-            hardResetState();
+            document.getElementById('main-title').innerHTML = `${currentClimb.name} (${formatTime(targetSeconds)}) <div class="help-icon" onclick="openHelp()">?</div>`;
+            hardResetState(false); // pass false to avoid fully locking/unlocking inappropriately
             renderList();
         }
 
-        // --- 7. UI & Ride Logic ---
+        // --- UI & Ride Logic ---
         function resetRideProgress() {
             if(confirm("Are you sure you want to reset? All current ride progress will be lost.")) {
-                hardResetState();
+                hardResetState(true);
                 renderList();
             }
         }
 
-        function hardResetState() {
+        function hardResetState(fullReset) {
             clearInterval(timerInterval);
             timerInterval = null;
             startTime = null;
@@ -480,6 +517,16 @@
             document.getElementById('startBtn').innerText = "START";
             document.getElementById('resetBtn').style.display = 'none';
             
+            if (fullReset) {
+                // Unlock settings if resetting
+                document.getElementById('targetTimeInput').disabled = false;
+                document.getElementById('splitSlider').disabled = false;
+                document.getElementById('climbSelect').disabled = false;
+                document.getElementById('attemptSelect').disabled = false;
+                document.getElementById('fetchBtn').disabled = false;
+                document.getElementById('toggleSettingsBtn').style.display = 'block';
+            }
+
             if(pacingTrendChart) {
                 pacingTrendChart.data.datasets[0].data = trendData;
                 pacingTrendChart.update();
@@ -497,6 +544,17 @@
             document.getElementById('startBtn').style.backgroundColor = '#334155';
             document.getElementById('startBtn').innerText = "RIDING";
             document.getElementById('resetBtn').style.display = 'inline-block';
+            
+            // Lock all settings and target edits during ride
+            document.getElementById('targetTimeInput').disabled = true;
+            document.getElementById('splitSlider').disabled = true;
+            document.getElementById('climbSelect').disabled = true;
+            document.getElementById('attemptSelect').disabled = true;
+            document.getElementById('fetchBtn').disabled = true;
+            
+            // Force collapse and hide toggle button
+            document.getElementById('data-settings-box').style.display = 'none';
+            document.getElementById('toggleSettingsBtn').style.display = 'none';
             
             renderActionDiv(currentActiveIndex); 
             
@@ -663,7 +721,7 @@
             initCharts();
         }
 
-        // --- 8. Charts Configuration (Exact from original) ---
+        // --- Charts Configuration ---
         function initCharts() {
             Chart.defaults.color = '#64748b'; 
             Chart.defaults.borderColor = '#e2e8f0'; 
@@ -672,7 +730,6 @@
             const chartLabels = activeSegments.map((seg, i) => {
                 if (i === 0) return "Start";
                 if (i === activeSegments.length - 1) return "Banner";
-                // Handle different segment naming safely
                 let splitName = seg.name.split(" to ");
                 return splitName.length > 1 ? "B" + splitName[1] : "S" + i;
             });
