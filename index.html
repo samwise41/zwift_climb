@@ -235,8 +235,13 @@
                 let personalizedSegments = [];
 
                 // Match Strava's data against your segments.json list
+                let missingSegments = [];
                 for (let targetName of currentClimb.subSegments) {
-                    const match = segmentEfforts.find(seg => seg.name === targetName);
+                    // Smart regex to find your name inside Strava's longer name
+                    // \b prevents "2 to 1" from matching "12 to 11"
+                    const regex = new RegExp("\\b" + targetName + "(?:\\b|\\s|$)", "i");
+                    const match = segmentEfforts.find(seg => regex.test(seg.name));
+                    
                     if (match) {
                         personalizedSegments.push({
                             name: targetName,
@@ -244,8 +249,14 @@
                             prevWatts: Math.round(match.average_watts || 0),
                             targetCumSec: null, targetPower: null
                         });
+                    } else {
+                        missingSegments.push(targetName);
                     }
                 }
+
+                if (missingSegments.length === 0) {
+                    baseSegments = personalizedSegments; 
+                    isDataLoaded = true; // Unlock the UI!
 
                 if (personalizedSegments.length === currentClimb.subSegments.length) {
                     baseSegments = personalizedSegments; 
