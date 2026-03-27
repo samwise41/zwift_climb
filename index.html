@@ -6,7 +6,7 @@
     <title>Universal Climb Pacer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <link rel="stylesheet" href="css/pacer.css">
+    <link rel="stylesheet" href="css/pacer.css?v=2">
 </head>
 <body>
 
@@ -31,7 +31,7 @@
         </div>
         
         <div id="strava-auth-zone">
-            <a href="/api/auth" id="strava-btn" class="strava-btn" target="_top">Connect Strava to fetch PR</a>
+            <button id="strava-btn" class="strava-btn" onclick="startStravaAuth()">Connect Strava to fetch PR</button>
         </div>
 
         <div id="settings-container" style="display: none; margin-bottom: 15px;">
@@ -100,7 +100,7 @@
 
     <div id="segmentList"></div>
 
-    <script src="js/pacer.js"></script>
+    <script src="js/pacer.js?v=2"></script>
     
 </body>
 </html>
