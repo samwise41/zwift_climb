@@ -1,0 +1,99 @@
+:root {
+    --bg-dark: #0f172a; 
+    --bg-panel: #1e293b; 
+    --zwift-orange: #fc6719;
+    --ahead-green: #4caf50;
+    --behind-red: #f44336;
+    --target-blue: #3daee9;
+    --cur-color: #fff;
+}
+
+body { font-family: -apple-system, sans-serif; background-color: var(--bg-dark); color: #ffffff; padding: 10px; max-width: 1200px; margin: auto; touch-action: manipulation; }
+.sticky-zone { position: sticky; top: 0; background-color: var(--bg-dark); z-index: 100; padding: 10px 0; border-bottom: 2px solid #1e293b; margin-bottom: 15px; }
+
+.header-row { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+h2 { margin: 0; color: var(--zwift-orange); font-size: 1.5em; display: flex; align-items: center; gap: 10px;}
+
+/* Status Badge */
+.status-text { font-weight: bold; display: none; padding: 4px 12px; border-radius: 12px; background-color: var(--bg-panel); font-size: 0.85em; text-align: center; border: 1px solid #475569;}
+.status-text.ahead { background-color: rgba(76, 175, 80, 0.15); color: #4caf50; border-color: #4caf50; }
+.status-text.behind { background-color: rgba(244, 67, 54, 0.15); color: #f44336; border-color: #f44336; }
+
+/* Help Modal */
+.help-icon { background: #cbd5e1; color: #0f172a; border-radius: 50%; width: 22px; height: 22px; font-size: 0.7em; display: flex; justify-content: center; align-items: center; cursor: pointer; font-weight: bold;}
+.modal-backdrop { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999; }
+.help-modal { display: none; position: fixed; top: 10%; left: 50%; transform: translateX(-50%); background: #ffffff; color: #0f172a; padding: 20px; border-radius: 8px; z-index: 1000; width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 2px solid var(--zwift-orange);}
+.help-modal h3 { margin-top: 0; color: var(--zwift-orange); }
+.help-modal ul { padding-left: 20px; font-size: 0.95em; line-height: 1.5;}
+.help-modal li { margin-bottom: 10px; }
+.close-help { background: #334155; color: white; padding: 8px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px;}
+
+/* Strava Auth & Settings */
+#strava-auth-zone { text-align: center; margin-bottom: 10px; }
+.strava-btn { background-color: #fc4c02; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; cursor: pointer; border: none;}
+
+.calculator-box { background-color: #ffffff; color: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+.calc-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.calc-input { background: #f1f5f9; border: 1px solid #94a3b8; color: #0f172a; padding: 8px; border-radius: 4px; font-size: 1em; width: 100%; max-width: 140px; font-weight: bold; }
+.calc-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.calc-btn { background-color: var(--target-blue); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
+.calc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 3-Column Dashboard Grid */
+.dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 15px; margin-bottom: 15px; }
+@media (min-width: 992px) {
+    .dashboard-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Control Card */
+.control-card { background-color: #ffffff; color: #0f172a; border-radius: 8px; padding: 15px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05); }
+
+/* Slider Styles */
+.slider-container { display: flex; flex-direction: column; gap: 5px; width: 100%; }
+.slider-labels { display: flex; justify-content: space-between; font-size: 0.8em; color: #475569; font-weight: bold; }
+input[type=range] { width: 100%; accent-color: var(--zwift-orange); }
+input[type=range]:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Timer Controls */
+#controls { display: flex; align-items: center; justify-content: space-between; }
+.timer-wrapper { display: flex; align-items: baseline; gap: 12px; }
+#timer { font-size: 3em; font-variant-numeric: tabular-nums; font-weight: bold; color: #0f172a; line-height: 1;}
+#main-delta { font-size: 1.5em; font-weight: bold; font-variant-numeric: tabular-nums;}
+.control-btns { display: flex; gap: 10px; }
+#startBtn { background-color: var(--zwift-orange); color: white; border: none; padding: 12px 25px; font-size: 1.2em; border-radius: 8px; font-weight: bold; cursor: pointer; }
+#startBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+#resetBtn { background-color: #f44336; color: white; border: none; padding: 12px 15px; font-size: 1.2em; border-radius: 8px; font-weight: bold; cursor: pointer; display: none; }
+
+/* Chart Cards */
+.chart-container { background-color: #ffffff; border-radius: 8px; padding: 10px 15px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05); }
+.chart-title { text-align: center; font-size: 0.85em; color: #475569; font-weight: bold; margin-bottom: 5px; }
+.chart-wrapper { position: relative; flex-grow: 1; min-height: 160px; width: 100%; }
+
+/* Segments */
+.segment { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1e293b; }
+.segment-info { flex: 1.2; }
+.segment-name { font-size: 1em; font-weight: bold; margin-bottom: 3px; }
+.segment-target { color: #94a3b8; font-size: 0.85em; margin-bottom: 2px; }
+.prev-data-row { color: #64748b; font-size: 0.85em; font-style: italic; }
+.segment-action { flex: 1.5; text-align: right; display: flex; justify-content: flex-end; align-items: center; }
+
+.split-btn { background-color: #334155; color: white; border: 1px solid #475569; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.split-btn:disabled { background-color: #1e293b; color: #475569; border-color: #1e293b; cursor: not-allowed; }
+
+.result-container { display: flex; flex-direction: column; align-items: flex-end; font-size: 0.9em; line-height: 1.4; }
+.time-row { margin-bottom: 4px; white-space: nowrap;}
+.cur-cum { color: var(--cur-color); font-variant-numeric: tabular-nums; font-weight: bold; }
+.cur-seg { color: #94a3b8; font-size: 0.9em;}
+.result { font-weight: bold; font-variant-numeric: tabular-nums;}
+.ahead { color: var(--ahead-green); } 
+.behind { color: var(--behind-red); } 
+
+.power-input-container { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+.undo-btn { background: none; border: 1px solid #475569; color: #94a3b8; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+.undo-btn:active { background: #334155; color: white;}
+.power-label { color: #94a3b8; font-size: 0.8em; margin-left: 5px;}
+
+/* Windows Keyboard Fix: Applied to power-input */
+.power-input { width: 55px; padding: 6px 3px; background-color: #1e293b; border-radius: 4px; text-align: center; font-size: 1em; font-weight: bold; color: white; border: 1px solid #1e293b; }
+.power-input::placeholder { color: #64748b; font-weight: normal;}
+.power-input:focus { outline: none; border-color: #3daee9; background-color: #334155; }
