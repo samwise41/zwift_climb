@@ -16,62 +16,100 @@
             --cur-color: #fff;
         }
         
-        body { font-family: -apple-system, sans-serif; background-color: var(--bg-dark); color: #ffffff; padding: 10px; max-width: 900px; margin: auto; }
+        body { font-family: -apple-system, sans-serif; background-color: var(--bg-dark); color: #ffffff; padding: 10px; max-width: 900px; margin: auto; touch-action: manipulation; }
         .sticky-zone { position: sticky; top: 0; background-color: var(--bg-dark); z-index: 100; padding: 10px 0; border-bottom: 2px solid #1e293b; margin-bottom: 15px; }
-        h2 { text-align: center; margin: 0 0 10px 0; color: var(--zwift-orange); font-size: 1.5em; }
         
-        /* Strava Auth & Data Settings Zone */
+        h2 { text-align: center; margin: 0 0 10px 0; color: var(--zwift-orange); font-size: 1.5em; display: flex; justify-content: center; align-items: center; gap: 10px;}
+        
+        /* Help Icon & Modal */
+        .help-icon { background: #cbd5e1; color: #0f172a; border-radius: 50%; width: 22px; height: 22px; font-size: 0.7em; display: flex; justify-content: center; align-items: center; cursor: pointer; font-weight: bold;}
+        .help-modal { display: none; position: fixed; top: 10%; left: 50%; transform: translateX(-50%); background: #ffffff; color: #0f172a; padding: 20px; border-radius: 8px; z-index: 1000; width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 2px solid var(--zwift-orange);}
+        .help-modal h3 { margin-top: 0; color: var(--zwift-orange); }
+        .help-modal ul { padding-left: 20px; font-size: 0.95em; line-height: 1.5;}
+        .help-modal li { margin-bottom: 10px; }
+        .close-help { background: #334155; color: white; padding: 8px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px;}
+
+        /* Strava Auth & Settings */
         #strava-auth-zone { text-align: center; margin-bottom: 10px; }
         .strava-btn { background-color: #fc4c02; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; cursor: pointer; border: none;}
-        .strava-btn:active { background-color: #e34402; }
         .status-text { font-weight: bold; display: none; margin-bottom: 10px; padding: 8px; border-radius: 4px; background-color: var(--bg-panel); text-align: center;}
 
         /* Calculator Styles */
         .calculator-box { background-color: #ffffff; color: #0f172a; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .calc-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
         .calc-input { background: #f1f5f9; border: 1px solid #94a3b8; color: #0f172a; padding: 8px; border-radius: 4px; font-size: 1em; width: 100%; max-width: 140px; font-weight: bold; }
-        .calc-btn { background-color: var(--target-blue); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: opacity 0.2s;}
+        .calc-btn { background-color: var(--target-blue); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
         
         /* Slider Styles */
         .slider-container { display: flex; flex-direction: column; gap: 5px; width: 100%; }
         .slider-labels { display: flex; justify-content: space-between; font-size: 0.8em; color: #475569; font-weight: bold; }
         input[type=range] { width: 100%; accent-color: var(--zwift-orange); }
 
-        /* Timer & Charts */
-        #controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; background-color: #ffffff; padding: 10px 15px; border-radius: 8px; border: 1px solid #cbd5e1; }
+        /* Timer Controls */
+        #controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; background-color: #ffffff; padding: 10px 15px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);}
         .timer-wrapper { display: flex; align-items: baseline; gap: 12px; }
         #timer { font-size: 3em; font-variant-numeric: tabular-nums; font-weight: bold; color: #0f172a; }
-        #main-delta { font-size: 1.5em; font-weight: bold; }
-        #startBtn { background-color: var(--zwift-orange); color: white; border: none; padding: 12px 25px; font-size: 1.2em; border-radius: 8px; font-weight: bold; cursor: pointer; transition: opacity 0.2s;}
+        #main-delta { font-size: 1.5em; font-weight: bold; font-variant-numeric: tabular-nums;}
+        .control-btns { display: flex; gap: 10px; }
+        #startBtn { background-color: var(--zwift-orange); color: white; border: none; padding: 12px 25px; font-size: 1.2em; border-radius: 8px; font-weight: bold; cursor: pointer; }
         #startBtn:disabled { opacity: 0.5; cursor: not-allowed; }
-        
-        /* Grid for Desktop Side-by-Side Charts */
-        .charts-section { display: grid; grid-template-columns: 1fr; gap: 15px; }
-        @media (min-width: 768px) {
-            .charts-section { grid-template-columns: 1fr 1fr; }
-        }
-        .chart-container { background-color: #ffffff; border-radius: 8px; padding: 10px; border: 1px solid #cbd5e1; height: 180px; }
+        #resetBtn { background-color: #f44336; color: white; border: none; padding: 12px 15px; font-size: 1.2em; border-radius: 8px; font-weight: bold; cursor: pointer; display: none; }
+
+        /* Charts */
+        .charts-section { display: flex; flex-direction: column; gap: 15px; }
+        .chart-container { background-color: #ffffff; border-radius: 8px; padding: 10px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05); }
         .chart-title { text-align: center; font-size: 0.85em; color: #475569; font-weight: bold; margin-bottom: 5px; }
-        
+        .chart-wrapper { position: relative; height: 160px; width: 100%; }
+        @media (min-width: 768px) {
+            .charts-section { flex-direction: row; }
+            .chart-container { flex: 1; min-width: 0; }
+            .chart-wrapper { height: 220px; }
+        }
+
         /* Segments */
         .segment { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #1e293b; }
         .segment-info { flex: 1.2; }
         .segment-name { font-size: 1em; font-weight: bold; margin-bottom: 3px; }
         .segment-target { color: #94a3b8; font-size: 0.85em; margin-bottom: 2px; }
         .prev-data-row { color: #64748b; font-size: 0.85em; font-style: italic; }
-        .segment-action { flex: 1.5; text-align: right; }
+        .segment-action { flex: 1.5; text-align: right; display: flex; justify-content: flex-end; align-items: center; }
+        
         .split-btn { background-color: #334155; color: white; border: 1px solid #475569; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .split-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .split-btn:disabled { background-color: #1e293b; color: #475569; border-color: #1e293b; cursor: not-allowed; }
         
         .result-container { display: flex; flex-direction: column; align-items: flex-end; font-size: 0.9em; line-height: 1.4; }
+        .time-row { margin-bottom: 4px; white-space: nowrap;}
+        .cur-cum { color: var(--cur-color); font-variant-numeric: tabular-nums; font-weight: bold; }
+        .cur-seg { color: #94a3b8; font-size: 0.9em;}
+        .result { font-weight: bold; font-variant-numeric: tabular-nums;}
         .ahead { color: var(--ahead-green); } 
         .behind { color: var(--behind-red); } 
+
+        .power-input-container { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+        .undo-btn { background: none; border: 1px solid #475569; color: #94a3b8; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+        .undo-btn:active { background: #334155; color: white;}
+        .power-label { color: #94a3b8; font-size: 0.8em; margin-left: 5px;}
+        .power-input { width: 55px; padding: 6px 3px; background-color: #1e293b; border-radius: 4px; text-align: center; font-size: 1em; font-weight: bold; color: white; border: 1px solid #1e293b; }
+        .power-input::placeholder { color: #64748b; font-weight: normal;}
+        .power-input:focus { outline: none; border-color: #3daee9; background-color: #334155; }
     </style>
 </head>
 <body>
 
+    <div id="helpModal" class="help-modal">
+        <h3>How to use the Pacer</h3>
+        <ul>
+            <li><b>Connect Strava:</b> We will pull your Personal Records directly from your activities to calculate realistic targets.</li>
+            <li><b>Set Target & Split:</b> Enter your desired total finish time. Use the slider to start faster (positive split) or end faster (negative split).</li>
+            <li><b>Ride:</b> Press START when you cross the segment banner.</li>
+            <li><b>Track Splits:</b> Press "Split" every time you complete a sub-segment (like a hairpin bend).</li>
+            <li><b>Record Power:</b> (Optional) Type your average wattage into the box for that split to map your performance on the Comparison Chart!</li>
+        </ul>
+        <button class="close-help" onclick="document.getElementById('helpModal').style.display='none'">Got it!</button>
+    </div>
+
     <div class="sticky-zone">
-        <h2 id="main-title">Climb Pacer</h2>
+        <h2 id="main-title">Climb Pacer <div class="help-icon" onclick="document.getElementById('helpModal').style.display='block'">?</div></h2>
         
         <div id="strava-auth-zone">
             <a href="/api/auth" id="strava-btn" class="strava-btn" target="_top">Connect Strava to fetch PR</a>
@@ -117,21 +155,20 @@
                 <div id="timer">00:00</div>
                 <div id="main-delta"></div>
             </div>
-            <button id="startBtn" onclick="startRide()" disabled>START</button>
+            <div class="control-btns">
+                <button id="resetBtn" onclick="resetRideProgress()">RESET</button>
+                <button id="startBtn" onclick="startRide()" disabled>START</button>
+            </div>
         </div>
 
         <div class="charts-section">
             <div class="chart-container">
-                <div class="chart-title">TARGET POWER (W)</div>
-                <div style="position: relative; height: 130px; width: 100%;">
-                    <canvas id="powerChart"></canvas>
-                </div>
+                <div class="chart-title">PACING TREND: Time Ahead (+)</div>
+                <div class="chart-wrapper"><canvas id="pacingTrendChart"></canvas></div>
             </div>
             <div class="chart-container">
-                <div class="chart-title">RIDE TREND: Time Ahead (+)</div>
-                <div style="position: relative; height: 130px; width: 100%;">
-                    <canvas id="pacingTrendChart"></canvas>
-                </div>
+                <div class="chart-title">COMPARISON: Time (Bars) & Watts (Lines)</div>
+                <div class="chart-wrapper"><canvas id="comparisonChart"></canvas></div>
             </div>
         </div>
     </div>
@@ -154,15 +191,19 @@
 
         let baseSegments = [];
         let activeSegments = [];
+        
         let startTime = null;
         let timerInterval = null;
         let currentActiveIndex = 0;
+        
+        // Ride Data Arrays
         let actualCumSecData = [];
         let trendData = [];
-        let pacingTrendChart;
-        let powerChart;
+        let currentSegTimeData = [];
+        let currentSegWattsData = [];
 
-        // --- UI Toggles ---
+        let pacingTrendChart, comparisonChart;
+
         function toggleSettings() {
             const box = document.getElementById('data-settings-box');
             box.style.display = box.style.display === 'none' ? 'flex' : 'none';
@@ -237,7 +278,7 @@
         function loadClimbSkeleton(climb) {
             currentClimb = climb;
             isDataLoaded = false;
-            document.getElementById('main-title').innerText = `${climb.name} Pacer`;
+            document.getElementById('main-title').innerHTML = `${climb.name} Pacer <div class="help-icon" onclick="document.getElementById('helpModal').style.display='block'">?</div>`;
             document.getElementById('targetTimeInput').value = climb.defaultTime;
             
             document.getElementById('startBtn').disabled = true;
@@ -324,7 +365,7 @@
                     isDataLoaded = true; 
                     
                     document.getElementById('startBtn').disabled = false;
-                    document.getElementById('data-settings-box').style.display = 'none'; // Auto-collapse on success
+                    document.getElementById('data-settings-box').style.display = 'none'; 
 
                     applyNewTarget(); 
                     
@@ -342,7 +383,7 @@
             }
         }
 
-        // --- 6. Pacing Calculator Logic (Real-Time) ---
+        // --- 6. Pacing Calculator Logic ---
         function parseTimeToSeconds(timeStr) {
             if(!timeStr) return 0;
             const parts = timeStr.split(':');
@@ -360,6 +401,22 @@
             return `${m}:${s}`;
         }
 
+        function updateMainDelta(delta) {
+            const el = document.getElementById('main-delta');
+            if (delta === null) {
+                el.textContent = "";
+                el.className = "";
+                return;
+            }
+            if (delta >= 0) {
+                el.textContent = `-${formatTime(delta)}`;
+                el.className = "ahead";
+            } else {
+                el.textContent = `+${formatTime(Math.abs(delta))}`;
+                el.className = "behind";
+            }
+        }
+
         function applyNewTarget() {
             if (!isDataLoaded) {
                 renderList(); 
@@ -367,10 +424,9 @@
             }
 
             const targetSeconds = parseTimeToSeconds(document.getElementById('targetTimeInput').value);
-            if (targetSeconds <= 0) return; // Prevent breaking math if input is empty
+            if (targetSeconds <= 0) return; 
 
             const sliderVal = parseInt(document.getElementById('splitSlider').value) / 100;
-
             const historicalTotal = baseSegments.reduce((sum, s) => sum + s.prevSegSec, 0);
             const baseRatio = targetSeconds / historicalTotal;
 
@@ -394,28 +450,44 @@
                 return { ...seg, targetCumSec: cumulativeSec, targetPower: newPower };
             });
 
-            document.getElementById('main-title').innerText = `${currentClimb.name} (${formatTime(targetSeconds)})`;
-            resetRide();
+            document.getElementById('main-title').innerHTML = `${currentClimb.name} (${formatTime(targetSeconds)}) <div class="help-icon" onclick="document.getElementById('helpModal').style.display='block'">?</div>`;
+            hardResetState();
             renderList();
         }
 
         // --- 7. UI & Ride Logic ---
-        function resetRide() {
+        function resetRideProgress() {
+            if(confirm("Are you sure you want to reset? All current ride progress will be lost.")) {
+                hardResetState();
+                renderList();
+            }
+        }
+
+        function hardResetState() {
             clearInterval(timerInterval);
             timerInterval = null;
             startTime = null;
             currentActiveIndex = 0;
+            
             actualCumSecData = new Array(activeSegments.length).fill(null);
             trendData = new Array(activeSegments.length).fill(null);
+            currentSegTimeData = new Array(activeSegments.length).fill(null);
+            currentSegWattsData = new Array(activeSegments.length).fill(null);
             
             document.getElementById('timer').innerText = "00:00";
-            document.getElementById('main-delta').innerText = "";
+            updateMainDelta(null);
             document.getElementById('startBtn').style.backgroundColor = 'var(--zwift-orange)';
             document.getElementById('startBtn').innerText = "START";
+            document.getElementById('resetBtn').style.display = 'none';
             
             if(pacingTrendChart) {
                 pacingTrendChart.data.datasets[0].data = trendData;
                 pacingTrendChart.update();
+            }
+            if(comparisonChart) {
+                comparisonChart.data.datasets[2].data = currentSegWattsData;
+                comparisonChart.data.datasets[5].data = currentSegTimeData;
+                comparisonChart.update();
             }
         }
 
@@ -424,6 +496,8 @@
             startTime = Date.now();
             document.getElementById('startBtn').style.backgroundColor = '#334155';
             document.getElementById('startBtn').innerText = "RIDING";
+            document.getElementById('resetBtn').style.display = 'inline-block';
+            
             renderActionDiv(currentActiveIndex); 
             
             timerInterval = setInterval(() => {
@@ -434,19 +508,77 @@
 
         function recordSplit(index) {
             if (!startTime || index !== currentActiveIndex) return; 
+
             const currentCumSec = Math.floor((Date.now() - startTime) / 1000);
             actualCumSecData[index] = currentCumSec;
+            
+            const prevCumSec = index > 0 ? actualCumSecData[index-1] : 0;
+            currentSegTimeData[index] = currentCumSec - prevCumSec;
             
             const splitDelta = activeSegments[index].targetCumSec - currentCumSec;
             trendData[index] = splitDelta;
             
-            const deltaEl = document.getElementById('main-delta');
-            deltaEl.innerText = splitDelta >= 0 ? `-${formatTime(splitDelta)}` : `+${formatTime(Math.abs(splitDelta))}`;
-            deltaEl.className = splitDelta >= 0 ? "ahead" : "behind";
-            
+            updateMainDelta(splitDelta);
             currentActiveIndex = index + 1; 
+
             if (pacingTrendChart) pacingTrendChart.update();
-            renderList();
+            if (comparisonChart) comparisonChart.update();
+
+            renderActionDiv(index);
+            if (index > 0) renderActionDiv(index - 1); 
+            if (index + 1 < activeSegments.length) renderActionDiv(index + 1); 
+        }
+
+        function undoSplit(index) {
+            if (index !== currentActiveIndex - 1) return;
+
+            actualCumSecData[index] = null;
+            currentSegTimeData[index] = null;
+            trendData[index] = null;
+            currentSegWattsData[index] = null;
+
+            if (index > 0) {
+                const prevIndex = index - 1;
+                const prevDelta = activeSegments[prevIndex].targetCumSec - actualCumSecData[prevIndex];
+                updateMainDelta(prevDelta);
+            } else {
+                updateMainDelta(null);
+            }
+
+            currentActiveIndex = index; 
+
+            if (pacingTrendChart) pacingTrendChart.update();
+            if (comparisonChart) comparisonChart.update();
+
+            renderActionDiv(index);
+            if (index > 0) renderActionDiv(index - 1);
+            if (index + 1 < activeSegments.length) renderActionDiv(index + 1);
+        }
+
+        function updateComparisonWatts(index, element) {
+            const val = element.value;
+            if (val === '') {
+                currentSegWattsData[index] = null;
+                element.style.border = '1px solid #1e293b';
+                element.style.color = 'var(--cur-color)'; 
+            } else {
+                const watts = parseInt(val);
+                if (!isNaN(watts)) {
+                    currentSegWattsData[index] = watts;
+                    applyPowerInputStyles(element, watts, activeSegments[index].targetPower);
+                }
+            }
+            if (comparisonChart) comparisonChart.update('none'); 
+        }
+
+        function applyPowerInputStyles(inputEl, userPower, targetPower) {
+            if (userPower >= targetPower) {
+                inputEl.style.border = '1px solid var(--ahead-green)';
+                inputEl.style.color = 'var(--ahead-green)';
+            } else {
+                inputEl.style.border = '1px solid var(--behind-red)';
+                inputEl.style.color = 'var(--behind-red)';
+            }
         }
 
         function renderActionDiv(i) {
@@ -454,16 +586,39 @@
             if (!actionDiv) return;
 
             if (actualCumSecData[i] !== null) {
-                const delta = activeSegments[i].targetCumSec - actualCumSecData[i];
+                const currentCumSec = actualCumSecData[i];
+                const prevCumSec = i > 0 ? actualCumSecData[i-1] : 0;
+                const segDuration = currentCumSec - prevCumSec;
+                const delta = activeSegments[i].targetCumSec - currentCumSec;
+                
                 let resTxt = delta >= 0 ? `-${formatTime(delta)} Ahead` : `+${formatTime(Math.abs(delta))} Behind`;
                 let resCls = delta >= 0 ? 'ahead' : 'behind';
+
+                const isLastCompleted = (i === currentActiveIndex - 1);
+                const undoBtnHtml = isLastCompleted ? `<button class="undo-btn" onclick="undoSplit(${i})">↺ Undo</button>` : '';
                 
+                const existingPower = currentSegWattsData[i] !== null ? currentSegWattsData[i] : '';
+
                 actionDiv.innerHTML = `
                     <div class="result-container">
-                        <div style="font-weight:bold">${formatTime(actualCumSecData[i])}</div>
-                        <div class="${resCls}">${resTxt}</div>
+                        <div class="time-row">
+                            <span class="cur-cum">${formatTime(currentCumSec)}</span> |
+                            <span class="cur-seg">Seg: ${formatTime(segDuration)}</span>
+                        </div>
+                        <div class="time-row result ${resCls}">${resTxt}</div>
+                        <div class="power-input-container">
+                            ${undoBtnHtml}
+                            <span class="power-label">Avg W:</span>
+                            <input type="tel" id="power-${i}" class="power-input" placeholder="--" pattern="[0-9]*" inputmode="numeric" value="${existingPower}" oninput="updateComparisonWatts(${i}, this)">
+                        </div>
                     </div>
                 `;
+                
+                if (existingPower !== '') {
+                    const inputEl = document.getElementById(`power-${i}`);
+                    applyPowerInputStyles(inputEl, parseInt(existingPower), activeSegments[i].targetPower);
+                }
+                
             } else if (i === currentActiveIndex && isDataLoaded) {
                 const disabledState = !startTime ? 'disabled' : '';
                 actionDiv.innerHTML = `<button class="split-btn" ${disabledState} onclick="recordSplit(${i})">Split</button>`;
@@ -504,36 +659,34 @@
                 list.appendChild(div);
                 renderActionDiv(index); 
             });
+            
             initCharts();
         }
 
+        // --- 8. Charts Configuration (Exact from original) ---
         function initCharts() {
-            const chartLabels = activeSegments.map((seg, i) => i === 0 ? "Start" : i === activeSegments.length - 1 ? "Finish" : "S" + (i));
-            
-            // Render Target Power Bar Chart (Updates instantly when sliding)
-            const powerData = activeSegments.map(seg => seg.targetPower || 0);
-            
-            if(powerChart) powerChart.destroy();
-            const ctxPower = document.getElementById('powerChart').getContext('2d');
-            powerChart = new Chart(ctxPower, {
-                type: 'bar',
-                data: {
-                    labels: chartLabels,
-                    datasets: [{
-                        label: 'Target Watts',
-                        data: powerData,
-                        backgroundColor: '#3daee9',
-                        borderRadius: 4
-                    }]
-                },
-                options: { 
-                    responsive: true, maintainAspectRatio: false, 
-                    plugins: { legend: { display: false } },
-                    scales: { y: { ticks: { color: '#64748b' }, grid: { color: '#e2e8f0' } }, x: { ticks: { color: '#64748b' }, grid: { display: false } } }
-                }
+            Chart.defaults.color = '#64748b'; 
+            Chart.defaults.borderColor = '#e2e8f0'; 
+            Chart.defaults.font.size = 10;
+
+            const chartLabels = activeSegments.map((seg, i) => {
+                if (i === 0) return "Start";
+                if (i === activeSegments.length - 1) return "Banner";
+                // Handle different segment naming safely
+                let splitName = seg.name.split(" to ");
+                return splitName.length > 1 ? "B" + splitName[1] : "S" + i;
             });
 
-            // Render Time-Ahead Trend Line Chart (Populates during ride)
+            const prevSegTimeData = activeSegments.map(s => s.prevSegSec);
+            const prevSegWattsData = activeSegments.map(s => s.prevWatts);
+            const targetWattsData = activeSegments.map(s => s.targetPower);
+            
+            const targetSegTimeData = activeSegments.map((s, i) => {
+                if (s.targetCumSec === null) return null;
+                if (i === 0) return s.targetCumSec;
+                return s.targetCumSec - activeSegments[i-1].targetCumSec;
+            });
+
             if(pacingTrendChart) pacingTrendChart.destroy();
             const ctxTrend = document.getElementById('pacingTrendChart').getContext('2d');
             pacingTrendChart = new Chart(ctxTrend, {
@@ -543,13 +696,86 @@
                     datasets: [{
                         label: 'Time Ahead/Behind', data: trendData,
                         borderColor: '#fc6719', backgroundColor: 'rgba(252, 103, 25, 0.15)',
-                        borderWidth: 2, pointBackgroundColor: '#fff', fill: true, tension: 0.1
+                        borderWidth: 2, pointBackgroundColor: '#fff', pointRadius: 3,
+                        fill: 'origin', tension: 0.1
                     }]
                 },
-                options: { 
+                options: {
                     responsive: true, maintainAspectRatio: false, 
-                    plugins: { legend: { display: false } },
-                    scales: { y: { ticks: { color: '#64748b' }, grid: { color: '#e2e8f0' } }, x: { ticks: { color: '#64748b' }, grid: { display: false } } }
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let val = context.raw;
+                                    if (val === null) return '';
+                                    let sign = val >= 0 ? '+' : '-';
+                                    return ` ${sign}${formatTime(val)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { 
+                            title: { display: false }, 
+                            ticks: { 
+                                stepSize: 30,
+                                callback: function(value) {
+                                    let sign = value >= 0 ? '+' : '-';
+                                    return `${sign}${formatTime(value)}`;
+                                }
+                            } 
+                        },
+                        x: { ticks: { maxRotation: 45, minRotation: 45 } }
+                    }
+                }
+            });
+
+            if(comparisonChart) comparisonChart.destroy();
+            const ctxComp = document.getElementById('comparisonChart').getContext('2d');
+            comparisonChart = new Chart(ctxComp, {
+                data: {
+                    labels: chartLabels,
+                    datasets: [
+                        { type: 'line', label: 'Prev W', data: prevSegWattsData, borderColor: '#888', borderDash: [1, 2], borderWidth: 1.5, fill: false, pointRadius: 0, yAxisID: 'y1' },
+                        { type: 'line', label: 'Target W', data: targetWattsData, borderColor: '#3daee9', borderDash: [6, 4], borderWidth: 2, fill: false, pointRadius: 0, yAxisID: 'y1' },
+                        { type: 'line', label: 'Cur W', data: currentSegWattsData, borderColor: '#4caf50', borderDash: [], borderWidth: 3, fill: false, pointRadius: 2, yAxisID: 'y1' },
+                        
+                        { type: 'bar', label: 'Prev Time', data: prevSegTimeData, backgroundColor: 'rgba(136, 136, 136, 0.4)', barPercentage: 0.9, categoryPercentage: 0.8, yAxisID: 'y' },
+                        { type: 'bar', label: 'Target Time', data: targetSegTimeData, backgroundColor: 'rgba(61, 174, 233, 0.4)', barPercentage: 0.9, categoryPercentage: 0.8, yAxisID: 'y' },
+                        { type: 'bar', label: 'Cur Time', data: currentSegTimeData, backgroundColor: 'rgba(76, 175, 80, 0.7)', barPercentage: 0.9, categoryPercentage: 0.8, yAxisID: 'y' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    plugins: { 
+                        legend: { position: 'top', labels: { boxWidth: 10, font: { size: 9 }, padding: 5 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    let val = context.raw;
+                                    if (val === null) return '';
+                                    if (context.dataset.yAxisID === 'y') {
+                                        return `${label}: ${formatTime(val)}`;
+                                    } else {
+                                        return `${label}: ${val}W`;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { 
+                            type: 'linear', position: 'left', title: { display: false }, min: 0, 
+                            ticks: { callback: value => formatTime(value) } 
+                        },
+                        y1: { 
+                            type: 'linear', position: 'right', title: { display: false }, grid: { drawOnChartArea: false }, min: 150, suggestedMax: 350, 
+                            ticks: { callback: value => value + 'W' } 
+                        },
+                        x: { ticks: { maxRotation: 45, minRotation: 45 }, stacked: false }
+                    }
                 }
             });
         }
