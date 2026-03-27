@@ -1,15 +1,104 @@
-function generateNewPace(historicalSegments, newTargetSeconds) {
-    // 1. Calculate total time of the historical effort
-    const historicalTotal = historicalSegments.reduce((sum, s) => sum + s.seconds, 0);
-    
-    // 2. Find the scaling ratio (e.g., 0.8 if aiming for 20% faster)
-    const ratio = newTargetSeconds / historicalTotal;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Alpe du Zwift Performance Pacer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Your existing CSS here... (keeping it brief for readability, but keep all your original styles!) */
+        :root { --bg-dark: #0f172a; --zwift-orange: #fc6719; --ahead-green: #4caf50; --behind-red: #f44336; }
+        body { font-family: sans-serif; background-color: var(--bg-dark); color: #fff; padding: 10px; max-width: 900px; margin: auto; }
+        .sticky-zone { position: sticky; top: 0; background-color: var(--bg-dark); z-index: 100; padding: 10px 0; border-bottom: 2px solid #1e293b; margin-bottom: 15px; }
+        h2 { text-align: center; margin: 0 0 10px 0; color: var(--zwift-orange); font-size: 1.5em; }
+        
+        /* New Styles for the Target Calculator */
+        .calculator-box { background-color: #1e293b; padding: 10px; border-radius: 8px; display: flex; gap: 10px; justify-content: center; align-items: center; margin-bottom: 15px; border: 1px solid #334155; }
+        .calc-input { background: #0f172a; border: 1px solid #475569; color: white; padding: 8px; border-radius: 4px; font-size: 1em; width: 80px; text-align: center; }
+        .calc-btn { background-color: #3daee9; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .calc-btn:active { background-color: #2b8abc; }
+        
+        /* ... paste the rest of your original CSS here ... */
+    </style>
+</head>
+<body>
 
-    // 3. Apply ratio to every segment
-    return historicalSegments.map(seg => ({
-        name: seg.name,
-        targetSegSec: Math.round(seg.seconds * ratio),
-        // Power required is roughly inverse to the time change
-        targetPower: Math.round(seg.watts * (1 / ratio)) 
-    }));
-}
+    <div class="sticky-zone">
+        <h2 id="main-title">Alpe Pacer</h2>
+        
+        <div class="calculator-box">
+            <label for="targetTimeInput">Target Time (MM:SS):</label>
+            <input type="text" id="targetTimeInput" class="calc-input" placeholder="59:30" value="59:30">
+            <button class="calc-btn" onclick="applyNewTarget()">Recalculate</button>
+        </div>
+
+        <div id="controls">
+            <div class="timer-wrapper">
+                <div id="timer">00:00</div>
+                <div id="main-delta"></div>
+            </div>
+            <button id="startBtn" onclick="startRide()">START</button>
+        </div>
+
+        <div class="charts-section">
+            <div class="chart-container">
+                <div class="chart-title">PACING TREND: Time Ahead (+)</div>
+                <div class="chart-wrapper"><canvas id="pacingTrendChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="segmentList"></div>
+
+    <script>
+        // Your baseline "Best Effort" data
+        let segments = [
+            { name: "Start to Bend 21", targetStr: "04:25", targetCumSec: 265, targetPower: 250, prevSegSec: 282, prevWatts: 235 }, 
+            // ... (PASTE ALL YOUR ORIGINAL 22 SEGMENTS HERE) ...
+            { name: "Bend 1 to Banner",targetStr: "59:29", targetCumSec: 3569, targetPower: 308, prevSegSec: 197, prevWatts: 290 }  
+        ];
+
+        // ----------------------------------------------------
+        // NEW LOGIC: Calculate spread based on new target
+        // ----------------------------------------------------
+        function parseTimeToSeconds(timeStr) {
+            const parts = timeStr.split(':');
+            return (parseInt(parts[0]) * 60) + parseInt(parts[1]);
+        }
+
+        function applyNewTarget() {
+            const inputVal = document.getElementById('targetTimeInput').value;
+            const newTargetSeconds = parseTimeToSeconds(inputVal);
+            
+            // 1. Calculate total time of the historical effort (using previous segment seconds as baseline)
+            const historicalTotal = segments.reduce((sum, s) => sum + s.prevSegSec, 0);
+            
+            // 2. Find the scaling ratio
+            const ratio = newTargetSeconds / historicalTotal;
+
+            // 3. Apply ratio to every segment to create a new pacing plan
+            let cumulativeSec = 0;
+            
+            segments = segments.map(seg => {
+                const newSegSec = Math.round(seg.prevSegSec * ratio);
+                cumulativeSec += newSegSec;
+                
+                return {
+                    ...seg,
+                    targetCumSec: cumulativeSec,
+                    targetPower: Math.round(seg.prevWatts * (1 / ratio)) // Inverse ratio for power
+                };
+            });
+
+            document.getElementById('main-title').innerText = `Alpe Pacer (${inputVal})`;
+            
+            // Re-initialize the list and charts with new data
+            document.getElementById('segmentList').innerHTML = '';
+            init(); 
+        }
+
+        // ... PASTE ALL YOUR ORIGINAL JAVASCRIPT FUNCTIONS HERE (initCharts, formatTime, init, etc) ...
+        
+    </script>
+</body>
+</html>
