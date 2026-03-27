@@ -1,3 +1,8 @@
+// ==========================================
+// DEV MODE TOGGLE (Set to false for Production)
+// ==========================================
+const DEV_MODE = true; 
+
 // --- Navigation Safety Warning ---
 window.addEventListener('beforeunload', function (e) {
     if (startTime) { 
@@ -58,6 +63,16 @@ function toggleSettings() {
 
 // --- Auth & Persistence Logic ---
 function initAuth() {
+    // DEV MODE BYPASS
+    if (DEV_MODE) {
+        stravaAccessToken = "DEV_MODE_ACTIVE";
+        document.getElementById('strava-btn').style.display = 'none';
+        document.getElementById('settings-container').style.display = 'block';
+        document.getElementById('data-settings-box').style.display = 'flex'; 
+        document.getElementById('toggleSettingsBtn').innerHTML = '▼ Hide Settings';
+        return;
+    }
+
     let urlToken = null;
     try {
         const urlParams = new URLSearchParams(window.location.search);
@@ -150,6 +165,41 @@ async function fetchUserData() {
     statusEl.style.display = 'inline-block';
     statusEl.classList.remove("ahead", "behind"); 
 
+    // DEV MODE FAKE DATA GENERATOR
+    if (DEV_MODE) {
+        setTimeout(() => {
+            let dummySegments = [];
+            let defaultTotalSecs = parseTimeToSeconds(currentClimb.defaultTime);
+            let avgSecsPerSegment = Math.round(defaultTotalSecs / currentClimb.subSegments.length);
+
+            for (let i = 0; i < currentClimb.subSegments.length; i++) {
+                // Add +/- 15 seconds of randomness to make it look real
+                let mockSegSec = avgSecsPerSegment + (Math.floor(Math.random() * 30) - 15);
+                // Random watts between 210 and 270
+                let mockWatts = 210 + Math.floor(Math.random() * 60); 
+                
+                dummySegments.push({
+                    name: currentClimb.subSegments[i],
+                    prevSegSec: mockSegSec,
+                    prevWatts: mockWatts,
+                    targetCumSec: null, targetPower: null
+                });
+            }
+
+            baseSegments = dummySegments; 
+            isDataLoaded = true; 
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('data-settings-box').style.display = 'none'; 
+            document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
+            applyNewTarget(); 
+            
+            statusEl.innerText = `✓ DEV MODE Data Loaded!`;
+            statusEl.classList.add("ahead");
+        }, 600); // 600ms fake loading delay
+        return;
+    }
+
+    // NORMAL STRAVA API FETCH
     const attemptType = document.getElementById('attemptSelect').value;
     const fetchLimit = attemptType === 'best' ? 50 : 1;
 
@@ -532,7 +582,7 @@ function renderList() {
     initCharts();
 }
 
-// --- Charts Configuration (Updated for Color Fill) ---
+// --- Charts Configuration ---
 function initCharts() {
     Chart.defaults.color = '#64748b'; 
     Chart.defaults.borderColor = '#e2e8f0'; 
@@ -565,14 +615,14 @@ function initCharts() {
             datasets: [{
                 label: 'Time Ahead/Behind', 
                 data: trendData,
-                borderColor: '#000000', // Black line
+                borderColor: '#000000',
                 borderWidth: 2, 
                 pointBackgroundColor: '#fff', 
                 pointRadius: 3,
                 fill: {
                     target: 'origin',
-                    above: 'rgba(76, 175, 80, 0.4)', // Green when ahead of 0
-                    below: 'rgba(252, 103, 25, 0.4)' // Orange when behind 0
+                    above: 'rgba(76, 175, 80, 0.4)', 
+                    below: 'rgba(252, 103, 25, 0.4)'
                 },
                 tension: 0.1
             }]
