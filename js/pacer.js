@@ -61,6 +61,16 @@ function toggleSettings() {
     }
 }
 
+// --- Auth Gatekeeper (Triggered by Button Click) ---
+function startStravaAuth() {
+    if (DEV_MODE) {
+        initAuth(); // Boot up fake UI instantly
+    } else {
+        // Safe redirect to real API endpoint
+        window.top.location.href = "/api/auth";
+    }
+}
+
 // --- Auth & Persistence Logic ---
 function initAuth() {
     // DEV MODE BYPASS
@@ -195,7 +205,7 @@ async function fetchUserData() {
             
             statusEl.innerText = `✓ DEV MODE Data Loaded!`;
             statusEl.classList.add("ahead");
-        }, 600); // 600ms fake loading delay
+        }, 600); 
         return;
     }
 
