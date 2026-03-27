@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Alpe du Zwift Performance Pacer</title>
+    <title>Universal Climb Pacer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -20,7 +20,7 @@
         .sticky-zone { position: sticky; top: 0; background-color: var(--bg-dark); z-index: 100; padding: 10px 0; border-bottom: 2px solid #1e293b; margin-bottom: 15px; }
         h2 { text-align: center; margin: 0 0 10px 0; color: var(--zwift-orange); font-size: 1.5em; }
         
-        /* Strava Auth Zone */
+        /* Strava Auth & Data Settings Zone */
         #strava-auth-zone { text-align: center; margin-bottom: 15px; }
         .strava-btn { background-color: #fc4c02; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; cursor: pointer; border: none;}
         .strava-btn:active { background-color: #e34402; }
@@ -29,7 +29,7 @@
         /* Calculator Styles */
         .calculator-box { background-color: #ffffff; color: #0f172a; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .calc-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-        .calc-input { background: #f1f5f9; border: 1px solid #94a3b8; color: #0f172a; padding: 8px; border-radius: 4px; font-size: 1.1em; width: 80px; text-align: center; font-weight: bold; }
+        .calc-input { background: #f1f5f9; border: 1px solid #94a3b8; color: #0f172a; padding: 8px; border-radius: 4px; font-size: 1em; width: 100%; max-width: 140px; font-weight: bold; }
         .calc-btn { background-color: var(--target-blue); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: opacity 0.2s;}
         .calc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         
@@ -68,17 +68,32 @@
 <body>
 
     <div class="sticky-zone">
-        <h2 id="main-title">Alpe Pacer</h2>
+        <h2 id="main-title">Climb Pacer</h2>
         
         <div id="strava-auth-zone">
-            <div id="strava-status" class="status-text"></div>
             <a href="/api/auth" id="strava-btn" class="strava-btn">Connect Strava to fetch PR</a>
+            <div id="strava-status" class="status-text"></div>
+        </div>
+
+        <div id="data-settings-box" class="calculator-box" style="display: none; background-color: #f8fafc;">
+            <div class="calc-row">
+                <label style="font-weight: bold;">Select Climb:</label>
+                <select id="climbSelect" class="calc-input"></select>
+            </div>
+            <div class="calc-row">
+                <label style="font-weight: bold;">Data to Grab:</label>
+                <select id="attemptSelect" class="calc-input">
+                    <option value="best">Best (Last 50)</option>
+                    <option value="recent">Most Recent</option>
+                </select>
+            </div>
+            <button class="calc-btn" style="background-color: var(--zwift-orange);" onclick="fetchUserData()">Fetch My Data</button>
         </div>
 
         <div class="calculator-box">
             <div class="calc-row">
                 <label style="font-weight: bold;">Target Time:</label>
-                <input type="text" id="targetTimeInput" class="calc-input" placeholder="59:30" value="59:30">
+                <input type="text" id="targetTimeInput" class="calc-input" placeholder="00:00" value="00:00" style="text-align: center; max-width: 80px;">
             </div>
             
             <div class="slider-container">
@@ -114,68 +129,113 @@
     <div id="segmentList"></div>
 
     <script>
-        // --- 1. Core State & Empty Placeholder Data ---
+        // --- 1. Core State ---
+        let stravaAccessToken = null;
+        let climbsConfig = [];
+        let currentClimb = null;
         let isDataLoaded = false;
 
-        const hairpinNames = [
-            "Start to Bend 21", "Bend 21 to 20", "Bend 20 to 19", "Bend 19 to 18", 
-            "Bend 18 to 17", "Bend 17 to 16", "Bend 16 to 15", "Bend 15 to 14", 
-            "Bend 14 to 13", "Bend 13 to 12", "Bend 12 to 11", "Bend 11 to 10", 
-            "Bend 10 to 9", "Bend 9 to 8", "Bend 8 to 7", "Bend 7 to 6", 
-            "Bend 6 to 5", "Bend 5 to 4", "Bend 4 to 3", "Bend 3 to 2", 
-            "Bend 2 to 1", "Bend 1 to Banner"
-        ];
-
-        let baseSegments = hairpinNames.map(name => ({
-            name: name,
-            targetCumSec: null,
-            targetPower: null,
-            prevSegSec: null,
-            prevWatts: null
-        }));
-
-        let activeSegments = JSON.parse(JSON.stringify(baseSegments));
+        let baseSegments = [];
+        let activeSegments = [];
         let startTime = null;
         let timerInterval = null;
         let currentActiveIndex = 0;
-        let actualCumSecData = new Array(activeSegments.length).fill(null);
-        let trendData = new Array(activeSegments.length).fill(null);
+        let actualCumSecData = [];
+        let trendData = [];
         let pacingTrendChart;
 
-        // --- 2. Strava Integration ---
-        async function fetchUserAlpePR(accessToken) {
+        // --- 2. Initialization & Local Storage ---
+        async function loadSegmentsConfig() {
+            try {
+                // Fetch the segments list you stored in GitHub
+                const res = await fetch('./segments.json?t=' + Date.now());
+                climbsConfig = await res.json();
+                
+                const selectEl = document.getElementById('climbSelect');
+                climbsConfig.forEach((climb, index) => {
+                    const opt = document.createElement('option');
+                    opt.value = index;
+                    opt.textContent = climb.name;
+                    selectEl.appendChild(opt);
+                });
+
+                selectEl.addEventListener('change', (e) => loadClimbSkeleton(climbsConfig[e.target.value]));
+                
+                // Load the first climb as the default skeleton
+                if(climbsConfig.length > 0) {
+                    loadClimbSkeleton(climbsConfig[0]);
+                }
+            } catch (e) {
+                console.error("Could not load segments.json.", e);
+                document.getElementById('main-title').innerText = "Error: segments.json missing";
+            }
+        }
+
+        function loadClimbSkeleton(climb) {
+            currentClimb = climb;
+            isDataLoaded = false;
+            document.getElementById('main-title').innerText = `${climb.name} Pacer`;
+            document.getElementById('targetTimeInput').value = climb.defaultTime;
+            
+            document.getElementById('calcBtn').disabled = true;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('strava-status').style.display = 'none';
+
+            // Build empty skeleton array based on the chosen climb's sub-segments
+            baseSegments = climb.subSegments.map(name => ({
+                name: name,
+                targetCumSec: null, targetPower: null, prevSegSec: null, prevWatts: null
+            }));
+            
+            applyNewTarget(); // Render the empty UI
+        }
+
+        // --- 3. Strava API Fetcher ---
+        async function fetchUserData() {
+            if (!stravaAccessToken || !currentClimb) return;
+
             const statusEl = document.getElementById('strava-status');
-            statusEl.innerText = "⏳ Analyzing your best Alpe climb...";
+            statusEl.innerText = `⏳ Searching Strava for your ${currentClimb.name} history...`;
             statusEl.style.display = 'block';
             statusEl.className = "status-text"; 
 
+            const attemptType = document.getElementById('attemptSelect').value;
+            const fetchLimit = attemptType === 'best' ? 50 : 1;
+
             try {
-                const ALPE_SEGMENT_ID = 17267489;
-                
-                // Fetch best effort
-                const effortsRes = await fetch(`https://www.strava.com/api/v3/segment_efforts?segment_id=${ALPE_SEGMENT_ID}&per_page=1`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                // Step A: Search Segment Efforts
+                const effortsRes = await fetch(`https://www.strava.com/api/v3/segment_efforts?segment_id=${currentClimb.id}&per_page=${fetchLimit}`, {
+                    headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
                 });
-                const effortsData = await effortsRes.json();
+                let effortsData = await effortsRes.json();
 
                 if (!effortsData || effortsData.length === 0 || effortsData.errors) {
-                    statusEl.innerText = "❌ No Alpe du Zwift efforts found on this account.";
+                    statusEl.innerText = `❌ No efforts found for ${currentClimb.name}.`;
                     statusEl.classList.add("behind");
                     return;
                 }
 
-                const activityId = effortsData[0].activity.id;
+                // If looking for the Best, sort the 50 results by fastest time
+                if (attemptType === 'best') {
+                    effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
+                }
 
-                // Fetch full activity to get hairpins
+                const targetEffort = effortsData[0];
+                const activityId = targetEffort.activity.id;
+
+                statusEl.innerText = `⏳ Loading full activity to map the segments...`;
+
+                // Step B: Fetch Full Activity to map sub-segments
                 const activityRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
-                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                    headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
                 });
                 const activityData = await activityRes.json();
                 const segmentEfforts = activityData.segment_efforts;
 
                 let personalizedSegments = [];
 
-                for (let targetName of hairpinNames) {
+                // Match Strava's data against your segments.json list
+                for (let targetName of currentClimb.subSegments) {
                     const match = segmentEfforts.find(seg => seg.name === targetName);
                     if (match) {
                         personalizedSegments.push({
@@ -187,7 +247,7 @@
                     }
                 }
 
-                if (personalizedSegments.length === 22) {
+                if (personalizedSegments.length === currentClimb.subSegments.length) {
                     baseSegments = personalizedSegments; 
                     isDataLoaded = true; // Unlock the UI!
                     
@@ -196,10 +256,10 @@
 
                     applyNewTarget(); // Calculate and populate targets
                     
-                    statusEl.innerText = "✓ Personal PR Loaded! Ready to pace.";
+                    statusEl.innerText = `✓ ${attemptType === 'best' ? 'PR' : 'Recent'} Loaded! Ready to pace.`;
                     statusEl.classList.add("ahead");
                 } else {
-                    statusEl.innerText = "⚠️ Found your activity, but some hairpins were missing.";
+                    statusEl.innerText = `⚠️ Found activity, but some sub-segments were missing.`;
                     statusEl.classList.add("behind");
                 }
             } catch (error) {
@@ -209,16 +269,18 @@
             }
         }
 
+        // Check URL for Auth Token on load
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
         
         if (token) {
+            stravaAccessToken = token;
             document.getElementById('strava-btn').style.display = 'none';
-            fetchUserAlpePR(token);
+            document.getElementById('data-settings-box').style.display = 'flex'; // Reveal the settings!
             window.history.replaceState({}, document.title, window.location.pathname);
         }
 
-        // --- 3. Pacing Calculator Logic ---
+        // --- 4. Pacing Calculator Logic ---
         function parseTimeToSeconds(timeStr) {
             const parts = timeStr.split(':');
             return (parseInt(parts[0]) * 60) + parseInt(parts[1]);
@@ -244,14 +306,12 @@
             const historicalTotal = baseSegments.reduce((sum, s) => sum + s.prevSegSec, 0);
             const baseRatio = targetSeconds / historicalTotal;
 
-            // Apply pacing slider math
             let tempSegments = baseSegments.map((seg, i) => {
                 const position = (i / (baseSegments.length - 1)) * 2 - 1;
                 const splitMultiplier = 1 + (position * sliderVal);
                 return { ...seg, rawScaledSec: seg.prevSegSec * baseRatio * splitMultiplier };
             });
 
-            // Normalize
             const rawTotalTime = tempSegments.reduce((sum, s) => sum + s.rawScaledSec, 0);
             const correctionFactor = targetSeconds / rawTotalTime;
 
@@ -266,12 +326,12 @@
                 return { ...seg, targetCumSec: cumulativeSec, targetPower: newPower };
             });
 
-            document.getElementById('main-title').innerText = `Alpe Pacer (${formatTime(targetSeconds)})`;
+            document.getElementById('main-title').innerText = `${currentClimb.name} (${formatTime(targetSeconds)})`;
             resetRide();
             renderList();
         }
 
-        // --- 4. UI & Ride Logic ---
+        // --- 5. UI & Ride Logic ---
         function resetRide() {
             clearInterval(timerInterval);
             timerInterval = null;
@@ -355,7 +415,6 @@
                 
                 if (seg.prevSegSec !== null) runningPrevCumSec += seg.prevSegSec;
 
-                // Safely format text so it shows --:-- or --W if data isn't loaded yet
                 const targetTimeStr = seg.targetCumSec !== null ? formatTime(seg.targetCumSec) : "--:--";
                 const targetSegTimeStr = targetSegSec !== null ? formatTime(targetSegSec) : "--:--";
                 const targetPowerStr = seg.targetPower !== null ? seg.targetPower + 'W' : '--W';
@@ -383,7 +442,7 @@
         function initCharts() {
             if(pacingTrendChart) pacingTrendChart.destroy();
             const ctxTrend = document.getElementById('pacingTrendChart').getContext('2d');
-            const chartLabels = activeSegments.map((seg, i) => i === 0 ? "Start" : i === activeSegments.length - 1 ? "Banner" : "B" + seg.name.split(" to ")[1]);
+            const chartLabels = activeSegments.map((seg, i) => i === 0 ? "Start" : i === activeSegments.length - 1 ? "Finish" : "S" + (i));
             
             pacingTrendChart = new Chart(ctxTrend, {
                 type: 'line',
@@ -403,8 +462,9 @@
             });
         }
 
-        // Render the empty skeleton on load
-        applyNewTarget(); 
+        // Kick off the app
+        loadSegmentsConfig();
+
     </script>
 </body>
 </html>
