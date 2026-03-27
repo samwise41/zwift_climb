@@ -283,15 +283,41 @@
             }
         }
 
-        // Check URL for Auth Token on load
+        // --- Auth Persistence Logic ---
         const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
+        const urlToken = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
         
-        if (token) {
-            stravaAccessToken = token;
+        if (urlToken) {
+            // 1. User just logged in. Save token and set expiration to 5.5 hours (Strava tokens expire in 6)
+            stravaAccessToken = urlToken;
+            const expiryTime = Date.now() + (5.5 * 60 * 60 * 1000); 
+            localStorage.setItem('strava_token', urlToken);
+            localStorage.setItem('strava_expiry', expiryTime);
+            
+            // Clean the URL so it looks nice
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+            // 2. No token in URL. Check memory.
+            const storedToken = localStorage.getItem('strava_token');
+            const storedExpiry = localStorage.getItem('strava_expiry');
+            
+            if (storedToken && storedExpiry && Date.now() < parseInt(storedExpiry)) {
+                // Memory has a valid, unexpired token!
+                stravaAccessToken = storedToken;
+            } else {
+                // Token is expired or doesn't exist. Clear memory just in case.
+                localStorage.removeItem('strava_token');
+                localStorage.removeItem('strava_expiry');
+            }
+        }
+
+        // 3. Update the UI based on whether we have a valid token
+        if (stravaAccessToken) {
             document.getElementById('strava-btn').style.display = 'none';
             document.getElementById('data-settings-box').style.display = 'flex'; // Reveal the settings!
-            window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+            document.getElementById('strava-btn').style.display = 'inline-block';
+            document.getElementById('data-settings-box').style.display = 'none';
         }
 
         // --- 4. Pacing Calculator Logic ---
