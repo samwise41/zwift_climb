@@ -129,7 +129,14 @@
     <div id="segmentList"></div>
 
     <script>
-        // --- 1. Core State ---
+        // --- 1. Safe Storage Wrapper (Prevents all iframe storage crashes) ---
+        const safeStorage = {
+            set: function(key, val) { try { window.localStorage.setItem(key, val); } catch(e) {} },
+            get: function(key) { try { return window.localStorage.getItem(key); } catch(e) { return null; } },
+            remove: function(key) { try { window.localStorage.removeItem(key); } catch(e) {} }
+        };
+
+        // --- 2. Core State ---
         let stravaAccessToken = null;
         let climbsConfig = [];
         let currentClimb = null;
@@ -144,62 +151,56 @@
         let trendData = [];
         let pacingTrendChart;
 
-        // --- 2. Auth & Persistence Logic (Safe for iFrames) ---
+        // --- 3. Auth & Persistence Logic ---
         function initAuth() {
+            let urlToken = null;
+            
+            // Step 1: Look for token in the current iframe URL
             try {
-                // 1. Check URL for token (from redirect)
                 const urlParams = new URLSearchParams(window.location.search);
-                let urlToken = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
+                urlToken = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
+            } catch(e) {}
+
+            // Step 2: Look for token in the parent window URL (if trapped in iframe)
+            if (!urlToken) {
+                try {
+                    const parentParams = new URLSearchParams(window.parent.location.search);
+                    urlToken = parentParams.get('access_token') || parentParams.get('code') || parentParams.get('token');
+                } catch(e) {}
+            }
+
+            // Step 3: Handle the token
+            if (urlToken) {
+                stravaAccessToken = urlToken;
+                const expiryTime = Date.now() + (5.5 * 60 * 60 * 1000); 
+                safeStorage.set('strava_token', urlToken);
+                safeStorage.set('strava_expiry', expiryTime.toString());
                 
-                // Fallback: Check parent URL if trapped in a same-origin iframe
-                if (!urlToken) {
-                    try {
-                        const parentParams = new URLSearchParams(window.parent.location.search);
-                        urlToken = parentParams.get('access_token') || parentParams.get('code') || parentParams.get('token');
-                    } catch(e) { /* Ignore cross-origin errors */ }
-                }
-
-                if (urlToken) {
-                    stravaAccessToken = urlToken;
-                    // Safely try to store it, catch the DOMException if blocked
-                    try {
-                        const expiryTime = Date.now() + (5.5 * 60 * 60 * 1000); 
-                        localStorage.setItem('strava_token', urlToken);
-                        localStorage.setItem('strava_expiry', expiryTime);
-                    } catch(e) {
-                        console.warn("Storage blocked by browser (likely iframe). Token is active but won't persist after refresh.");
-                    }
-                    
-                    // Clean the URL visually if possible
-                    try { window.history.replaceState({}, document.title, window.location.pathname); } catch(e) {}
+                // Try to clean the URL up
+                try { window.history.replaceState({}, document.title, window.location.pathname); } catch(e) {}
+            } else {
+                // Check memory for unexpired token
+                const storedToken = safeStorage.get('strava_token');
+                const storedExpiry = safeStorage.get('strava_expiry');
+                if (storedToken && storedExpiry && Date.now() < parseInt(storedExpiry)) {
+                    stravaAccessToken = storedToken;
                 } else {
-                    // 2. No URL token. Safely check memory.
-                    try {
-                        const storedToken = localStorage.getItem('strava_token');
-                        const storedExpiry = localStorage.getItem('strava_expiry');
-                        if (storedToken && storedExpiry && Date.now() < parseInt(storedExpiry)) {
-                            stravaAccessToken = storedToken;
-                        } else {
-                            localStorage.removeItem('strava_token');
-                            localStorage.removeItem('strava_expiry');
-                        }
-                    } catch (e) { /* Storage blocked, ignore */ }
+                    safeStorage.remove('strava_token');
+                    safeStorage.remove('strava_expiry');
                 }
+            }
 
-                // 3. Update the UI based on Auth state
-                if (stravaAccessToken) {
-                    document.getElementById('strava-btn').style.display = 'none';
-                    document.getElementById('data-settings-box').style.display = 'flex';
-                } else {
-                    document.getElementById('strava-btn').style.display = 'inline-block';
-                    document.getElementById('data-settings-box').style.display = 'none';
-                }
-            } catch (err) {
-                console.error("Auth init crashed: ", err);
+            // Step 4: Update UI
+            if (stravaAccessToken) {
+                document.getElementById('strava-btn').style.display = 'none';
+                document.getElementById('data-settings-box').style.display = 'flex';
+            } else {
+                document.getElementById('strava-btn').style.display = 'inline-block';
+                document.getElementById('data-settings-box').style.display = 'none';
             }
         }
 
-        // --- 3. Configuration & JSON Loader ---
+        // --- 4. Configuration & JSON Loader ---
         async function loadSegmentsConfig() {
             try {
                 const res = await fetch('./segments.json?t=' + Date.now());
@@ -242,7 +243,7 @@
             applyNewTarget(); 
         }
 
-        // --- 4. Strava API Fetcher ---
+        // --- 5. Strava API Fetcher ---
         async function fetchUserData() {
             if (!stravaAccessToken || !currentClimb) return;
 
@@ -262,7 +263,8 @@
 
                 // Token validation check
                 if (effortsData.message === "Authorization Error" || effortsRes.status === 401) {
-                    try { localStorage.removeItem('strava_token'); localStorage.removeItem('strava_expiry'); } catch(e){}
+                    safeStorage.remove('strava_token'); 
+                    safeStorage.remove('strava_expiry');
                     statusEl.innerText = `❌ Session expired. Please reconnect to Strava.`;
                     statusEl.classList.add("behind");
                     document.getElementById('strava-btn').style.display = 'inline-block';
@@ -335,7 +337,7 @@
             }
         }
 
-        // --- 5. Pacing Calculator Logic ---
+        // --- 6. Pacing Calculator Logic ---
         function parseTimeToSeconds(timeStr) {
             const parts = timeStr.split(':');
             return (parseInt(parts[0]) * 60) + parseInt(parts[1]);
@@ -386,7 +388,7 @@
             renderList();
         }
 
-        // --- 6. UI & Ride Logic ---
+        // --- 7. UI & Ride Logic ---
         function resetRide() {
             clearInterval(timerInterval);
             timerInterval = null;
