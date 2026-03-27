@@ -1,7 +1,7 @@
 // ==========================================
 // DEV MODE TOGGLE (Set to false for Production)
 // ==========================================
-const DEV_MODE = true; 
+const DEV_MODE = false; 
 
 // --- Navigation Safety Warning ---
 window.addEventListener('beforeunload', function (e) {
