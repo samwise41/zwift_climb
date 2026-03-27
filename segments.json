@@ -1,0 +1,15 @@
+[
+    {
+        "id": 17267489,
+        "name": "Alpe du Zwift",
+        "defaultTime": "59:30",
+        "subSegments": [
+            "Start to Bend 21", "Bend 21 to 20", "Bend 20 to 19", "Bend 19 to 18", 
+            "Bend 18 to 17", "Bend 17 to 16", "Bend 16 to 15", "Bend 15 to 14", 
+            "Bend 14 to 13", "Bend 13 to 12", "Bend 12 to 11", "Bend 11 to 10", 
+            "Bend 10 to 9", "Bend 9 to 8", "Bend 8 to 7", "Bend 7 to 6", 
+            "Bend 6 to 5", "Bend 5 to 4", "Bend 4 to 3", "Bend 3 to 2", 
+            "Bend 2 to 1", "Bend 1 to Banner"
+        ]
+    }
+]
