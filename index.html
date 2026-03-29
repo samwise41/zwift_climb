@@ -1,136 +1,781 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Universal Climb Pacer</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="css/pacer.css?v=4">
-</head>
-<body>
+// ==========================================
+// js/pacer.js - Unified Stable Architecture
+// ==========================================
 
-    <div id="modalBackdrop" class="modal-backdrop" onclick="closeHelp()"></div>
-    <div id="helpModal" class="help-modal">
-        <h3>How to use the Pacer</h3>
-        <ul>
-            <li><b>Connect Strava:</b> We will pull your PRs directly from your activities.</li>
-            <li><b>Custom Route (GPX):</b> Upload any GPX file. We will slice it into checkpoints based on your chosen split interval.</li>
-            <li><b>Set Target:</b> Enter your desired total finish time and adjust the positive/negative split slider.</li>
-            <li><b>Ride:</b> Press START when you cross the segment banner.</li>
-            <li><b>Cockpit Mode:</b> Tap the rocket icon to enter a minimal, distraction-free heads-up display.</li>
-        </ul>
-        <button class="close-help" onclick="closeHelp()">Got it!</button>
-    </div>
+// 1. SERVICE WORKER ASSASSIN (Kills rogue caches causing errors)
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) { registration.unregister(); }
+    });
+}
 
-    <div class="top-dashboard" style="position: relative;">
+const DEV_MODE = true; 
 
-        <div class="header-row">
-            <h2><span id="title-text">Climb Pacer</span> <div class="help-icon" onclick="openHelp()">?</div></h2>
-            <div id="strava-status" class="status-text"></div>
-            <button id="cockpitToggleBtn" onclick="toggleCockpitMode()" style="background: none; border: 1px solid var(--zwift-orange); color: var(--zwift-orange); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: bold; margin-left: 10px;">🚀 Cockpit</button>
-        </div>
-        
-        <div id="strava-auth-zone">
-            <button id="strava-btn" class="strava-btn" onclick="startStravaAuth()">Connect Strava to fetch PR</button>
-        </div>
+const safeStorage = {
+    set: function(key, val) { try { window.localStorage.setItem(key, val); } catch(e) {} },
+    get: function(key) { try { return window.localStorage.getItem(key); } catch(e) { return null; } },
+    remove: function(key) { try { window.localStorage.removeItem(key); } catch(e) {} }
+};
 
-        <div id="settings-container" style="display: none; margin-bottom: 15px;">
-            <button id="toggleSettingsBtn" onclick="toggleSettings()" style="width: 100%; background: #334155; color: white; border: 1px solid #475569; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold;">▼ Hide Settings</button>
-            <div id="data-settings-box" class="calculator-box" style="display: flex; margin-top: 10px; background-color: #f8fafc; margin-bottom: 0;">
-                
-                <div class="calc-row">
-                    <label style="font-weight: bold;">Select Route:</label>
-                    <select id="climbSelect" class="calc-input"></select>
-                </div>
-                
-                <div class="calc-row" id="strava-fetch-row">
-                    <label style="font-weight: bold;">Data to Grab:</label>
-                    <select id="attemptSelect" class="calc-input">
-                        <option value="best">Best (Last 50)</option>
-                        <option value="recent">Most Recent</option>
-                    </select>
-                </div>
+// --- Global State Variables ---
+let stravaAccessToken = null;
+let climbsConfig = [];
+let currentClimb = null;
+let isDataLoaded = false;
+let effortDateStr = ""; 
 
-                <div id="gpx-upload-zone" style="display: none; flex-direction: column; gap: 10px; background: #e2e8f0; padding: 10px; border-radius: 6px;">
-                    <div class="calc-row">
-                        <label style="font-size: 0.9em; color: #475569;">Upload Activity GPX:</label>
-                        <input type="file" id="gpxInput" accept=".gpx" style="font-size: 0.85em; max-width: 180px;">
-                    </div>
-                    <div class="calc-row">
-                        <label style="font-size: 0.9em; color: #475569;">Split Interval (km):</label>
-                        <input type="number" id="splitIntervalKm" class="calc-input" value="1.0" step="0.5" style="max-width: 80px;">
-                    </div>
-                </div>
+let baseSegments = [];
+let activeSegments = [];
+let startTime = null;
+let timerInterval = null;
+let currentActiveIndex = 0;
 
-                <div class="calc-row" style="gap: 5px;">
-                    <button id="fetchBtn" class="calc-btn" style="background-color: var(--zwift-orange);" onclick="processDataRequest()">Load Target Data</button>
-                    <button onclick="clearCacheAndReset()" style="background: none; border: 1px solid #f44336; color: #f44336; padding: 8px; border-radius: 6px; cursor: pointer;" title="Clear Saved Data">🗑️</button>
-                </div>
+let actualCumSecData = [];
+let trendData = [];
+let currentSegTimeData = [];
+let currentSegWattsData = [];
 
-            </div>
-        </div>
+let pacingTrendChart, comparisonChart;
 
-        <div class="dashboard-grid">
-            
-            <div class="control-card">
-                <div>
-                    <div class="control-row">
-                        <label style="font-weight: bold; font-size: 1.1em;">Target Time:</label>
-                        <input type="text" inputmode="numeric" id="targetTimeInput" class="calc-input" placeholder="00:00" value="00:00" style="text-align: center; max-width: 90px; font-size: 1.1em;" oninput="applyNewTarget()">
-                    </div>
-                    
-                    <div class="control-row time-display-row">
-                        <div style="font-size: 1.4em; font-weight: bold; color: inherit;">Current Time</div>
-                        <div class="timer-values">
-                            <div id="timer">00:00</div>
-                            <div id="main-delta"></div>
-                        </div>
-                    </div>
-                    
-                    <div class="slider-container" style="margin-top: 15px;">
-                        <div class="slider-labels">
-                            <span>Pos Split</span>
-                            <span>Even</span>
-                            <span>Neg Split</span>
-                        </div>
-                        <input type="range" id="splitSlider" min="-10" max="10" value="0" oninput="applyNewTarget()">
-                    </div>
-                </div>
-                
-                <hr style="border: 0; border-top: 1px solid #cbd5e1; width: 100%; margin: 15px 0;">
-                
-                <div class="control-btns centered-btns">
-                    <button id="resetBtn" onclick="resetRideProgress()">RESET</button>
-                    <button id="startBtn" onclick="startRide()" disabled>START</button>
-                </div>
+// --- Safety & Modals ---
+window.addEventListener('beforeunload', function (e) {
+    if (startTime) { e.preventDefault(); e.returnValue = ''; }
+});
+function openHelp() { document.getElementById('helpModal').style.display = 'block'; document.getElementById('modalBackdrop').style.display = 'block'; }
+function closeHelp() { document.getElementById('helpModal').style.display = 'none'; document.getElementById('modalBackdrop').style.display = 'none'; }
+function toggleSettings() {
+    const box = document.getElementById('data-settings-box');
+    const btn = document.getElementById('toggleSettingsBtn');
+    if (box.style.display === 'none') {
+        box.style.display = 'flex';
+        btn.innerHTML = '▼ Hide Settings';
+    } else {
+        box.style.display = 'none';
+        btn.innerHTML = '▶ Show Settings';
+    }
+}
 
-                <div id="cockpit-active-segment">
-                    </div>
-            </div>
+// --- Auth & Initialization ---
+function startStravaAuth() {
+    if (DEV_MODE) {
+        initAuth(); 
+    } else {
+        window.top.location.href = "/api/auth";
+    }
+}
 
-            <div id="toggle-charts-btn" style="grid-column: 1 / -1; text-align: right;">
-                <button onclick="document.getElementById('chart-wrapper-zone').style.display = document.getElementById('chart-wrapper-zone').style.display === 'none' ? 'contents' : 'none';" style="background: none; border: none; color: var(--target-blue); font-weight: bold; cursor: pointer; font-size: 0.9em;">📊 Toggle Charts</button>
-            </div>
-
-            <div id="chart-wrapper-zone" style="display: contents;">
-                <div class="chart-container">
-                    <div class="chart-title">PACING TREND: Time Ahead (+)</div>
-                    <div class="chart-wrapper"><canvas id="pacingTrendChart"></canvas></div>
-                </div>
-                <div class="chart-container">
-                    <div class="chart-title">COMPARISON: Time & Watts</div>
-                    <div class="chart-wrapper"><canvas id="comparisonChart"></canvas></div>
-                </div>
-            </div>
-
-        </div>
-    </div>
-
-    <div id="segmentList"></div>
-
-    <script src="js/state.js?v=5"></script>
-    <script src="js/engine.js?v=5"></script>
-    <script src="js/ui.js?v=5"></script>
+function initAuth() {
+    if (DEV_MODE) stravaAccessToken = "DEV_MODE_ACTIVE";
     
-</body>
-</html>
+    let urlToken = null;
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlToken = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
+    } catch(e) {}
+
+    if (urlToken) {
+        stravaAccessToken = urlToken;
+        safeStorage.set('strava_token', urlToken);
+        safeStorage.set('strava_expiry', (Date.now() + (5.5 * 60 * 60 * 1000)).toString());
+        try { window.history.replaceState({}, document.title, window.location.pathname); } catch(e) {}
+    } else if (!stravaAccessToken) {
+        const storedToken = safeStorage.get('strava_token');
+        const storedExpiry = safeStorage.get('strava_expiry');
+        if (storedToken && storedExpiry && Date.now() < parseInt(storedExpiry)) {
+            stravaAccessToken = storedToken;
+        }
+    }
+
+    if (stravaAccessToken) {
+        document.getElementById('strava-btn').style.display = 'none';
+        document.getElementById('settings-container').style.display = 'block';
+        document.getElementById('data-settings-box').style.display = 'flex'; 
+    }
+}
+
+async function loadSegmentsConfig() {
+    try {
+        const res = await fetch('./segments.json?t=' + Date.now());
+        climbsConfig = await res.json();
+        climbsConfig.push({ name: "Other / Custom Route (GPX)", id: "custom", defaultTime: "01:00", subSegments: [] });
+
+        const selectEl = document.getElementById('climbSelect');
+        climbsConfig.forEach((climb, index) => {
+            const opt = document.createElement('option');
+            opt.value = index;
+            opt.textContent = climb.name;
+            selectEl.appendChild(opt);
+        });
+
+        selectEl.addEventListener('change', (e) => {
+            const selected = climbsConfig[e.target.value];
+            if (selected.id === "custom") {
+                document.getElementById('gpx-upload-zone').style.display = 'flex';
+                document.getElementById('strava-fetch-row').style.display = 'none';
+            } else {
+                document.getElementById('gpx-upload-zone').style.display = 'none';
+                document.getElementById('strava-fetch-row').style.display = 'flex';
+            }
+            loadClimbSkeleton(selected);
+        });
+
+        const cachedDataStr = safeStorage.get('pacer_cache_data');
+        if (cachedDataStr) {
+            const cachedData = JSON.parse(cachedDataStr);
+            const climbIndex = climbsConfig.findIndex(c => c.name === cachedData.climbName);
+            if (climbIndex !== -1) {
+                selectEl.value = climbIndex;
+                currentClimb = climbsConfig[climbIndex];
+                
+                if (currentClimb.id === "custom") {
+                    document.getElementById('gpx-upload-zone').style.display = 'flex';
+                    document.getElementById('strava-fetch-row').style.display = 'none';
+                }
+
+                document.getElementById('title-text').innerText = `${currentClimb.name} Pacer`;
+                document.getElementById('targetTimeInput').value = cachedData.targetTimeStr;
+                
+                baseSegments = cachedData.baseSegments;
+                isDataLoaded = true;
+                
+                effortDateStr = cachedData.effortDateStr || "";
+                const dateEl = document.getElementById('effort-date-display');
+                if (effortDateStr) {
+                    dateEl.innerText = `Baseline Effort: ${effortDateStr}`;
+                    dateEl.style.display = 'block';
+                } else {
+                    dateEl.style.display = 'none';
+                }
+                
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('data-settings-box').style.display = 'none'; 
+                document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
+                
+                const statusEl = document.getElementById('strava-status');
+                statusEl.innerText = `✓ Cached Data Loaded!`;
+                statusEl.style.display = 'inline-block';
+                statusEl.className = "status-text ahead";
+                
+                applyNewTarget();
+                return;
+            }
+        }
+        
+        if(climbsConfig.length > 0) loadClimbSkeleton(climbsConfig[0]);
+        
+    } catch (e) {
+        console.error("Config Error:", e);
+    }
+}
+
+function loadClimbSkeleton(climb) {
+    currentClimb = climb;
+    isDataLoaded = false;
+    effortDateStr = ""; 
+    document.getElementById('title-text').innerText = `${climb.name} Pacer`;
+    document.getElementById('effort-date-display').style.display = 'none'; 
+    document.getElementById('targetTimeInput').value = climb.defaultTime;
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('strava-status').style.display = 'none';
+    
+    baseSegments = climb.subSegments.map(name => ({
+        name: name, targetCumSec: null, targetPower: null, prevSegSec: null, prevWatts: null
+    }));
+    
+    applyNewTarget(); 
+}
+
+function clearCacheAndReset() {
+    safeStorage.remove('pacer_cache_data');
+    alert("Cache cleared. Ready to fetch new data.");
+    loadClimbSkeleton(currentClimb);
+    document.getElementById('data-settings-box').style.display = 'flex'; 
+}
+
+// --- Engine: Data Fetching ---
+function processDataRequest() {
+    if (currentClimb.id === "custom") {
+        parseGPXFile();
+    } else {
+        fetchUserData();
+    }
+}
+
+async function fetchUserData() {
+    if (!stravaAccessToken || !currentClimb) return;
+
+    const statusEl = document.getElementById('strava-status');
+    statusEl.innerText = `⏳ Searching Strava...`;
+    statusEl.style.display = 'inline-block';
+    statusEl.classList.remove("ahead", "behind"); 
+
+    if (DEV_MODE) {
+        setTimeout(() => {
+            let dummySegments = [];
+            let defaultTotalSecs = parseTimeToSeconds(currentClimb.defaultTime);
+            let avgSecsPerSegment = Math.round(defaultTotalSecs / currentClimb.subSegments.length);
+
+            for (let i = 0; i < currentClimb.subSegments.length; i++) {
+                let mockSegSec = avgSecsPerSegment + (Math.floor(Math.random() * 30) - 15);
+                let mockWatts = 210 + Math.floor(Math.random() * 60); 
+                dummySegments.push({ name: currentClimb.subSegments[i], prevSegSec: mockSegSec, prevWatts: mockWatts, targetCumSec: null, targetPower: null });
+            }
+            saveAndLoadData(dummySegments, "DEV MODE Data Loaded", "Today (Dev Mode)");
+        }, 600); 
+        return;
+    }
+
+    const attemptType = document.getElementById('attemptSelect').value;
+    const fetchLimit = 50; 
+
+    try {
+        const effortsRes = await fetch(`https://www.strava.com/api/v3/segment_efforts?segment_id=${currentClimb.id}&per_page=${fetchLimit}`, {
+            headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
+        });
+        
+        if (effortsRes.status === 429) {
+            statusEl.innerHTML = `⚠️ Strava Limit Reached. Use Custom Route (GPX) mode.`;
+            statusEl.classList.add("behind");
+            return;
+        }
+        
+        let effortsData = await effortsRes.json();
+
+        if (effortsData.message === "Authorization Error" || effortsRes.status === 401) {
+            safeStorage.remove('strava_token'); 
+            statusEl.innerText = `❌ Session expired.`;
+            statusEl.classList.add("behind");
+            document.getElementById('strava-btn').style.display = 'inline-block';
+            return;
+        }
+
+        if (!effortsData || effortsData.length === 0 || effortsData.errors) {
+            statusEl.innerText = `❌ No efforts found.`;
+            statusEl.classList.add("behind");
+            return;
+        }
+
+        if (attemptType === 'best') {
+            effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
+        } else {
+            effortsData.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+        }
+
+        const targetEffort = effortsData[0];
+        const effortDateObj = new Date(targetEffort.start_date_local || targetEffort.start_date);
+        const formattedDate = effortDateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+        statusEl.innerText = `⏳ Loading full activity...`;
+
+        const activityRes = await fetch(`https://www.strava.com/api/v3/activities/${targetEffort.activity.id}?include_all_efforts=true`, {
+            headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
+        });
+        
+        if (activityRes.status === 429) {
+            statusEl.innerHTML = `⚠️ Strava Limit Reached. Use GPX Fallback.`;
+            statusEl.classList.add("behind");
+            return;
+        }
+
+        const activityData = await activityRes.json();
+        
+        if (!activityData || !activityData.segment_efforts) {
+            statusEl.innerHTML = `⚠️ Strava blocked segment data. Use GPX Fallback.`;
+            statusEl.classList.add("behind");
+            return;
+        }
+
+        let personalizedSegments = [];
+        let missingSegments = [];
+
+        for (let targetName of currentClimb.subSegments) {
+            const cleanTarget = targetName.toLowerCase().replace(/bend/g, '').replace(/[^a-z0-9]/g, '');
+            
+            const match = activityData.segment_efforts.find(seg => {
+                const cleanStravaName = seg.name.toLowerCase().replace(/bend/g, '').replace(/[^a-z0-9]/g, '');
+                return cleanStravaName.includes(cleanTarget);
+            });
+            
+            if (match) {
+                personalizedSegments.push({ name: targetName, prevSegSec: match.elapsed_time, prevWatts: Math.round(match.average_watts || 0), targetCumSec: null, targetPower: null });
+            } else {
+                missingSegments.push(targetName);
+                personalizedSegments.push({ name: targetName, prevSegSec: 180, prevWatts: 150, targetCumSec: null, targetPower: null });
+            }
+        }
+
+        const successMsg = attemptType === 'best' ? "PR Loaded!" : "Recent Effort Loaded!";
+        saveAndLoadData(personalizedSegments, successMsg, formattedDate);
+
+    } catch (error) {
+        console.error(error);
+        statusEl.innerText = "❌ Connection Error";
+        statusEl.classList.add("behind");
+    }
+}
+
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; 
+    const dLat = (lat2-lat1) * (Math.PI/180);
+    const dLon = (lon2-lon1) * (Math.PI/180); 
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * (Math.PI/180)) * Math.cos(lat2 * (Math.PI/180)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c; 
+}
+
+function parseGPXFile() {
+    const fileInput = document.getElementById('gpxInput');
+    const intervalKm = parseFloat(document.getElementById('splitIntervalKm').value) || 1.0;
+    const statusEl = document.getElementById('strava-status');
+    
+    if (!fileInput.files || fileInput.files.length === 0) {
+        statusEl.innerText = "⚠️ Please select a GPX file first.";
+        statusEl.style.display = 'inline-block';
+        statusEl.className = "status-text behind";
+        return;
+    }
+
+    statusEl.innerText = "⏳ Parsing GPX...";
+    statusEl.style.display = 'inline-block';
+    statusEl.className = "status-text";
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(e.target.result, "text/xml");
+            const trkpts = xmlDoc.getElementsByTagName("trkpt");
+            
+            if (trkpts.length === 0) throw new Error("No trackpoints found in GPX.");
+
+            let generatedSegments = [];
+            let currentSegmentWattsSum = 0;
+            let currentSegmentWattsCount = 0;
+            let cumulativeKm = 0;
+            let targetNextSplitKm = intervalKm;
+            
+            let startPointTimeStr = trkpts[0].getElementsByTagName("time")[0].textContent;
+            let startPointTime = new Date(startPointTimeStr).getTime();
+            const gpxDate = new Date(startPointTimeStr).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+            for (let i = 1; i < trkpts.length; i++) {
+                let lat1 = parseFloat(trkpts[i-1].getAttribute("lat"));
+                let lon1 = parseFloat(trkpts[i-1].getAttribute("lon"));
+                let lat2 = parseFloat(trkpts[i].getAttribute("lat"));
+                let lon2 = parseFloat(trkpts[i].getAttribute("lon"));
+                
+                cumulativeKm += getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2);
+                
+                let ext = trkpts[i].getElementsByTagName("extensions")[0];
+                if (ext) {
+                    let pwrNode = ext.getElementsByTagName("power")[0];
+                    if (pwrNode) {
+                        currentSegmentWattsSum += parseInt(pwrNode.textContent);
+                        currentSegmentWattsCount++;
+                    }
+                }
+
+                if (cumulativeKm >= targetNextSplitKm || i === trkpts.length - 1) {
+                    let endPointTime = new Date(trkpts[i].getElementsByTagName("time")[0].textContent).getTime();
+                    let segSecs = Math.round((endPointTime - startPointTime) / 1000);
+                    let avgWatts = currentSegmentWattsCount > 0 ? Math.round(currentSegmentWattsSum / currentSegmentWattsCount) : 0;
+                    
+                    let segName = i === trkpts.length - 1 ? "Finish" : `Km ${targetNextSplitKm.toFixed(1)}`;
+
+                    generatedSegments.push({
+                        name: segName, prevSegSec: segSecs, prevWatts: avgWatts, targetCumSec: null, targetPower: null
+                    });
+
+                    startPointTime = endPointTime;
+                    currentSegmentWattsSum = 0;
+                    currentSegmentWattsCount = 0;
+                    targetNextSplitKm += intervalKm;
+                }
+            }
+            saveAndLoadData(generatedSegments, "GPX Parsed Successfully!", gpxDate);
+        } catch (err) {
+            console.error(err);
+            statusEl.innerText = "❌ Error reading GPX format.";
+            statusEl.className = "status-text behind";
+        }
+    };
+    reader.readAsText(fileInput.files[0]);
+}
+
+function saveAndLoadData(segmentDataArray, successMsg, dateStr = "") {
+    baseSegments = segmentDataArray; 
+    effortDateStr = dateStr;
+    isDataLoaded = true; 
+    
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('data-settings-box').style.display = 'none'; 
+    document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
+    
+    const statusEl = document.getElementById('strava-status');
+    statusEl.innerText = `✓ ${successMsg}`;
+    statusEl.className = "status-text ahead";
+
+    const dateEl = document.getElementById('effort-date-display');
+    if (effortDateStr) {
+        dateEl.innerText = `Baseline Effort: ${effortDateStr}`;
+        dateEl.style.display = 'block';
+    } else {
+        dateEl.style.display = 'none';
+    }
+
+    applyNewTarget(); 
+
+    const cacheObject = {
+        climbName: currentClimb.name,
+        targetTimeStr: document.getElementById('targetTimeInput').value,
+        baseSegments: baseSegments,
+        effortDateStr: effortDateStr
+    };
+    safeStorage.set('pacer_cache_data', JSON.stringify(cacheObject));
+}
+
+// --- Pacing Math ---
+function parseTimeToSeconds(timeStr) {
+    if(!timeStr) return 0;
+    const parts = timeStr.split(':');
+    if (parts.length === 2) {
+        return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+    }
+    return (parseInt(parts[0]) || 0) * 60;
+}
+
+function formatTime(totalSeconds) {
+    if (totalSeconds === null || totalSeconds === undefined || isNaN(totalSeconds)) return "--:--";
+    const absSec = Math.abs(Math.round(totalSeconds));
+    const m = Math.floor(absSec / 60).toString().padStart(2, '0');
+    const s = (absSec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+function applyNewTarget() {
+    if (!isDataLoaded) {
+        renderList(); 
+        return;
+    }
+
+    const targetSeconds = parseTimeToSeconds(document.getElementById('targetTimeInput').value);
+    if (targetSeconds <= 0) return; 
+
+    const sliderVal = parseInt(document.getElementById('splitSlider').value) / 100;
+    const historicalTotal = baseSegments.reduce((sum, s) => sum + s.prevSegSec, 0);
+    const baseRatio = targetSeconds / historicalTotal;
+
+    let tempSegments = baseSegments.map((seg, i) => {
+        const position = (i / (baseSegments.length - 1)) * 2 - 1;
+        const splitMultiplier = 1 + (position * sliderVal);
+        return { ...seg, rawScaledSec: seg.prevSegSec * baseRatio * splitMultiplier };
+    });
+
+    const rawTotalTime = tempSegments.reduce((sum, s) => sum + s.rawScaledSec, 0);
+    const correctionFactor = targetSeconds / rawTotalTime;
+
+    let cumulativeSec = 0;
+    activeSegments = tempSegments.map(seg => {
+        const finalSegSec = Math.round(seg.rawScaledSec * correctionFactor);
+        cumulativeSec += finalSegSec;
+        const timeRatio = finalSegSec / seg.prevSegSec;
+        const newPower = Math.round(seg.prevWatts * (1 / timeRatio));
+        return { ...seg, targetCumSec: cumulativeSec, targetPower: newPower };
+    });
+
+    document.getElementById('title-text').innerText = `${currentClimb.name} (${formatTime(targetSeconds)})`;
+    hardResetState(false); 
+    renderList();
+    
+    if (isDataLoaded) {
+        const cacheStr = safeStorage.get('pacer_cache_data');
+        if (cacheStr) {
+            let cacheObj = JSON.parse(cacheStr);
+            cacheObj.targetTimeStr = document.getElementById('targetTimeInput').value;
+            cacheObj.baseSegments = activeSegments; 
+            safeStorage.set('pacer_cache_data', JSON.stringify(cacheObj));
+        }
+    }
+}
+
+// --- UI Updates ---
+function updateMainDelta(delta) {
+    const el = document.getElementById('main-delta');
+    if (delta === null) {
+        el.textContent = ""; el.className = ""; return;
+    }
+    el.textContent = delta >= 0 ? `-${formatTime(delta)}` : `+${formatTime(Math.abs(delta))}`;
+    el.className = delta >= 0 ? "ahead" : "behind";
+}
+
+function resetRideProgress() {
+    if(confirm("Are you sure you want to reset? All current ride progress will be lost.")) {
+        hardResetState(true);
+        renderList();
+    }
+}
+
+function hardResetState(fullReset) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    startTime = null;
+    currentActiveIndex = 0;
+    
+    actualCumSecData = new Array(activeSegments.length).fill(null);
+    trendData = new Array(activeSegments.length).fill(null);
+    currentSegTimeData = new Array(activeSegments.length).fill(null);
+    currentSegWattsData = new Array(activeSegments.length).fill(null);
+    
+    document.getElementById('timer').innerText = "00:00";
+    updateMainDelta(null);
+    document.getElementById('startBtn').style.backgroundColor = 'var(--zwift-orange)';
+    document.getElementById('startBtn').innerText = "START";
+    document.getElementById('resetBtn').style.display = 'none';
+    
+    if (fullReset) {
+        document.getElementById('targetTimeInput').disabled = false;
+        document.getElementById('splitSlider').disabled = false;
+        document.getElementById('climbSelect').disabled = false;
+        document.getElementById('attemptSelect').disabled = false;
+        document.getElementById('fetchBtn').disabled = false;
+        document.getElementById('toggleSettingsBtn').style.display = 'block';
+    }
+
+    if(pacingTrendChart) { pacingTrendChart.data.datasets[0].data = trendData; pacingTrendChart.update(); }
+    if(comparisonChart) { comparisonChart.data.datasets[2].data = currentSegWattsData; comparisonChart.data.datasets[5].data = currentSegTimeData; comparisonChart.update(); }
+}
+
+function startRide() {
+    if (!isDataLoaded || timerInterval) return; 
+    startTime = Date.now();
+    document.getElementById('startBtn').style.backgroundColor = '#334155';
+    document.getElementById('startBtn').innerText = "RIDING";
+    document.getElementById('resetBtn').style.display = 'inline-block';
+    
+    document.getElementById('targetTimeInput').disabled = true;
+    document.getElementById('splitSlider').disabled = true;
+    document.getElementById('climbSelect').disabled = true;
+    document.getElementById('attemptSelect').disabled = true;
+    document.getElementById('fetchBtn').disabled = true;
+    document.getElementById('data-settings-box').style.display = 'none';
+    document.getElementById('toggleSettingsBtn').style.display = 'none';
+    
+    renderActionDiv(currentActiveIndex); 
+    
+    timerInterval = setInterval(() => {
+        const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+        document.getElementById('timer').innerText = formatTime(elapsedSec);
+    }, 1000);
+}
+
+function recordSplit(index) {
+    if (!startTime || index !== currentActiveIndex) return; 
+    const currentCumSec = Math.floor((Date.now() - startTime) / 1000);
+    actualCumSecData[index] = currentCumSec;
+    const prevCumSec = index > 0 ? actualCumSecData[index-1] : 0;
+    currentSegTimeData[index] = currentCumSec - prevCumSec;
+    const splitDelta = activeSegments[index].targetCumSec - currentCumSec;
+    trendData[index] = splitDelta;
+    
+    updateMainDelta(splitDelta);
+    currentActiveIndex = index + 1; 
+
+    if (pacingTrendChart) pacingTrendChart.update();
+    if (comparisonChart) comparisonChart.update();
+
+    renderActionDiv(index);
+    if (index > 0) renderActionDiv(index - 1); 
+    if (index + 1 < activeSegments.length) renderActionDiv(index + 1); 
+}
+
+function undoSplit(index) {
+    if (index !== currentActiveIndex - 1) return;
+    actualCumSecData[index] = null;
+    currentSegTimeData[index] = null;
+    trendData[index] = null;
+    currentSegWattsData[index] = null;
+
+    if (index > 0) {
+        const prevIndex = index - 1;
+        const prevDelta = activeSegments[prevIndex].targetCumSec - actualCumSecData[prevIndex];
+        updateMainDelta(prevDelta);
+    } else {
+        updateMainDelta(null);
+    }
+    currentActiveIndex = index; 
+
+    if (pacingTrendChart) pacingTrendChart.update();
+    if (comparisonChart) comparisonChart.update();
+
+    renderActionDiv(index);
+    if (index > 0) renderActionDiv(index - 1);
+    if (index + 1 < activeSegments.length) renderActionDiv(index + 1);
+}
+
+function updateComparisonWatts(index, element) {
+    const val = element.value;
+    if (val === '') {
+        currentSegWattsData[index] = null;
+        element.style.border = '1px solid #1e293b';
+        element.style.color = 'var(--cur-color)'; 
+    } else {
+        const watts = parseInt(val);
+        if (!isNaN(watts)) {
+            currentSegWattsData[index] = watts;
+            applyPowerInputStyles(element, watts, activeSegments[index].targetPower);
+        }
+    }
+    if (comparisonChart) comparisonChart.update('none'); 
+}
+
+function applyPowerInputStyles(inputEl, userPower, targetPower) {
+    if (userPower >= targetPower) {
+        inputEl.style.border = '1px solid var(--ahead-green)';
+        inputEl.style.color = 'var(--ahead-green)';
+    } else {
+        inputEl.style.border = '1px solid var(--behind-red)';
+        inputEl.style.color = 'var(--behind-red)';
+    }
+}
+
+function buildActionHtml(i) {
+    if (!isDataLoaded) return `<button class="split-btn" disabled>Split</button>`;
+
+    if (actualCumSecData[i] !== null) {
+        const currentCumSec = actualCumSecData[i];
+        const prevCumSec = i > 0 ? actualCumSecData[i-1] : 0;
+        const segDuration = currentCumSec - prevCumSec;
+        const delta = activeSegments[i].targetCumSec - currentCumSec;
+        let resTxt = delta >= 0 ? `-${formatTime(delta)} Ahead` : `+${formatTime(Math.abs(delta))} Behind`;
+        let resCls = delta >= 0 ? 'ahead' : 'behind';
+        const isLastCompleted = (i === currentActiveIndex - 1);
+        const undoBtnHtml = isLastCompleted ? `<button class="undo-btn" onclick="undoSplit(${i})">↺ Undo</button>` : '';
+        const existingPower = currentSegWattsData[i] !== null ? currentSegWattsData[i] : '';
+
+        return `
+            <div class="result-container" style="align-items: center;">
+                <div class="time-row"><span class="cur-cum">${formatTime(currentCumSec)}</span> | <span class="cur-seg">Seg: ${formatTime(segDuration)}</span></div>
+                <div class="time-row result ${resCls}">${resTxt}</div>
+                <div class="power-input-container">
+                    ${undoBtnHtml}
+                    <span class="power-label">Avg W:</span>
+                    <input type="number" inputmode="decimal" id="power-${i}" class="power-input" placeholder="--" value="${existingPower}" oninput="updateComparisonWatts(${i}, this)">
+                </div>
+            </div>
+        `;
+    } else if (i === currentActiveIndex) {
+        const disabledState = !startTime ? 'disabled' : '';
+        return `<button class="split-btn" ${disabledState} onclick="recordSplit(${i})" style="width: 100%; max-width: 300px;">Split: ${activeSegments[i].name}</button>`;
+    } else {
+        return `<button class="split-btn" disabled>Split: ${activeSegments[i].name}</button>`;
+    }
+}
+
+function renderActionDiv(i) {
+    const actionDiv = document.getElementById(`action-${i}`);
+    if (actionDiv) {
+        actionDiv.innerHTML = buildActionHtml(i);
+        const existingPower = currentSegWattsData[i] !== null ? currentSegWattsData[i] : '';
+        if (existingPower !== '') {
+            applyPowerInputStyles(document.getElementById(`power-${i}`), parseInt(existingPower), activeSegments[i].targetPower);
+        }
+    }
+}
+
+function renderList() {
+    const list = document.getElementById('segmentList');
+    list.innerHTML = '';
+    let runningPrevCumSec = 0;
+
+    activeSegments.forEach((seg, index) => {
+        const prevTargetCumSec = index > 0 && activeSegments[index-1].targetCumSec !== null ? activeSegments[index-1].targetCumSec : 0;
+        const targetSegSec = seg.targetCumSec !== null ? (seg.targetCumSec - prevTargetCumSec) : null;
+        if (seg.prevSegSec !== null) runningPrevCumSec += seg.prevSegSec;
+
+        const targetTimeStr = seg.targetCumSec !== null ? formatTime(seg.targetCumSec) : "--:--";
+        const targetSegTimeStr = targetSegSec !== null ? formatTime(targetSegSec) : "--:--";
+        const targetPowerStr = seg.targetPower !== null ? seg.targetPower + 'W' : '--W';
+        
+        const div = document.createElement('div');
+        div.className = 'segment';
+        div.innerHTML = `
+            <div class="segment-info">
+                <div class="segment-name">${seg.name}</div>
+                <div class="segment-target" style="color: var(--target-blue); font-weight: bold;">Target: ${targetTimeStr} (${targetSegTimeStr}) @ ${targetPowerStr}</div>
+                <div class="prev-data-row">Prev: ${formatTime(runningPrevCumSec)} (${formatTime(seg.prevSegSec)}) @ ${seg.prevWatts !== null ? seg.prevWatts+'W' : '--W'}</div>
+            </div>
+            <div class="segment-action" id="action-${index}"></div>
+        `;
+        list.appendChild(div);
+        renderActionDiv(index); 
+    });
+    initCharts();
+}
+
+function initCharts() {
+    Chart.defaults.color = '#64748b'; 
+    Chart.defaults.borderColor = '#e2e8f0'; 
+    Chart.defaults.font.size = 10;
+
+    const chartLabels = activeSegments.map((seg, i) => {
+        if (i === 0) return "Start";
+        if (i === activeSegments.length - 1) return "Banner";
+        let splitName = seg.name.split(" to ");
+        return splitName.length > 1 ? "B" + splitName[1] : "S" + i;
+    });
+
+    const prevSegTimeData = activeSegments.map(s => s.prevSegSec);
+    const prevSegWattsData = activeSegments.map(s => s.prevWatts);
+    const targetWattsData = activeSegments.map(s => s.targetPower);
+    const targetSegTimeData = activeSegments.map((s, i) => {
+        if (s.targetCumSec === null) return null;
+        return i === 0 ? s.targetCumSec : s.targetCumSec - activeSegments[i-1].targetCumSec;
+    });
+
+    if(pacingTrendChart) pacingTrendChart.destroy();
+    const ctxTrend = document.getElementById('pacingTrendChart').getContext('2d');
+    pacingTrendChart = new Chart(ctxTrend, {
+        type: 'line',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: 'Time Ahead/Behind', data: trendData, borderColor: '#000000', borderWidth: 2, 
+                pointBackgroundColor: '#fff', pointRadius: 3, tension: 0.1,
+                fill: { target: 'origin', above: 'rgba(76, 175, 80, 0.4)', below: 'rgba(252, 103, 25, 0.4)' }
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+            scales: { y: { ticks: { stepSize: 30, callback: (v) => (v >= 0 ? '+' : '-') + formatTime(v) } }, x: { ticks: { maxRotation: 45, minRotation: 45 } } }
+        }
+    });
+
+    if(comparisonChart) comparisonChart.destroy();
+    const ctxComp = document.getElementById('comparisonChart').getContext('2d');
+    comparisonChart = new Chart(ctxComp, {
+        data: {
+            labels: chartLabels,
+            datasets: [
+                { type: 'line', label: 'Prev W', data: prevSegWattsData, borderColor: '#888', borderDash: [1, 2], borderWidth: 1.5, fill: false, pointRadius: 0, yAxisID: 'y1' },
+                { type: 'line', label: 'Target W', data: targetWattsData, borderColor: '#3daee9', borderDash: [6, 4], borderWidth: 2, fill: false, pointRadius: 0, yAxisID: 'y1' },
+                { type: 'line', label: 'Cur W', data: currentSegWattsData, borderColor: '#4caf50', borderDash: [], borderWidth: 3, fill: false, pointRadius: 2, yAxisID: 'y1' },
+                { type: 'bar', label: 'Prev Time', data: prevSegTimeData, backgroundColor: 'rgba(136, 136, 136, 0.4)', barPercentage: 0.9, categoryPercentage: 0.8, yAxisID: 'y' },
+                { type: 'bar', label: 'Target Time', data: targetSegTimeData, backgroundColor: 'rgba(61, 174, 233, 0.4)', barPercentage: 0.9, categoryPercentage: 0.8, yAxisID: 'y' },
+                { type: 'bar', label: 'Cur Time', data: currentSegTimeData, backgroundColor: 'rgba(76, 175, 80, 0.7)', barPercentage: 0.9, categoryPercentage: 0.8, yAxisID: 'y' }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 9 }, padding: 5 } } },
+            scales: {
+                y: { type: 'linear', position: 'left', min: 0, ticks: { callback: v => formatTime(v) } },
+                y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, min: 150, suggestedMax: 350, ticks: { callback: v => v + 'W' } },
+                x: { ticks: { maxRotation: 45, minRotation: 45 }, stacked: false }
+            }
+        }
+    });
+}
+
+// Kick off the application
+initAuth();
+loadSegmentsConfig();
