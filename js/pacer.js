@@ -34,6 +34,9 @@ let climbsConfig = [];
 let currentClimb = null;
 let isDataLoaded = false;
 
+// NEW: Tracks the native pop-out PiP window
+let pipWindow = null; 
+
 let baseSegments = [];
 let activeSegments = [];
 
@@ -60,6 +63,87 @@ function toggleSettings() {
         btn.innerHTML = '▶ Show Settings';
     }
 }
+
+// ==========================================
+// TRUE FLOATING COCKPIT (Document PiP API)
+// ==========================================
+async function toggleCockpitMode() {
+    const btn = document.getElementById('cockpitToggleBtn');
+
+    // 1. Browser Support Check
+    if (!('documentPictureInPicture' in window)) {
+        alert("Your browser does not support true floating windows yet! Please use Google Chrome or Microsoft Edge on a Desktop/Laptop to hover over Zwift.");
+        return;
+    }
+
+    // 2. Close if already open
+    if (pipWindow) {
+        pipWindow.close();
+        return;
+    }
+
+    // 3. Open the floating window
+    try {
+        pipWindow = await documentPictureInPicture.requestWindow({
+            width: 320,
+            height: 280
+        });
+
+        // 4. Build the PiP Interface internally with inline styles
+        pipWindow.document.body.innerHTML = `
+            <div style="background-color: #0f172a; color: white; height: 100vh; width: 100vw; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; position: absolute; top: 0; left: 0;">
+                <div style="font-size: 1.2em; color: #3daee9; margin-bottom: 5px; text-align: center; font-weight: bold;">${currentClimb ? currentClimb.name : 'Climb Pacer'}</div>
+                <div id="pip-timer" style="font-size: 4.5em; font-weight: bold; font-variant-numeric: tabular-nums; line-height: 1; margin: 5px 0;">${document.getElementById('timer').innerText}</div>
+                <div id="pip-main-delta" style="font-size: 2em; font-weight: bold; margin-bottom: 20px;">${document.getElementById('main-delta').innerText}</div>
+                <div id="pip-action-zone" style="width: 100%; text-align: center;"></div>
+            </div>
+        `;
+
+        // Sync initial colors from the main page
+        const mainDeltaEl = document.getElementById('main-delta');
+        const pipDeltaEl = pipWindow.document.getElementById('pip-main-delta');
+        if (mainDeltaEl.classList.contains('ahead')) pipDeltaEl.style.color = '#4caf50';
+        if (mainDeltaEl.classList.contains('behind')) pipDeltaEl.style.color = '#f44336';
+
+        renderPipAction(); // Inject the massive button
+
+        // 5. Handle user manually closing the PiP window via the "X"
+        pipWindow.addEventListener("pagehide", (event) => {
+            pipWindow = null;
+            btn.innerHTML = '🚀 Cockpit';
+        });
+
+        btn.innerHTML = '❌ Close Cockpit';
+
+    } catch (error) {
+        console.error("PiP failed to open:", error);
+    }
+}
+
+// Dynamically renders the giant split button inside the PiP window
+function renderPipAction() {
+    if (!pipWindow || !isDataLoaded) return;
+    const zone = pipWindow.document.getElementById('pip-action-zone');
+
+    if (currentActiveIndex < activeSegments.length) {
+        const disabledStyle = !startTime ? 'opacity: 0.5; cursor: not-allowed; background-color: #334155;' : 'cursor: pointer; background-color: #fc6719;';
+        const btnText = !startTime ? "Waiting to Start..." : `Split: ${activeSegments[currentActiveIndex].name}`;
+
+        zone.innerHTML = `<button id="pip-split-btn" style="color: white; border: none; padding: 15px 20px; border-radius: 8px; font-weight: bold; font-size: 1.3em; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; ${disabledStyle}">${btnText}</button>`;
+
+        const btn = pipWindow.document.getElementById('pip-split-btn');
+        if (btn && startTime) {
+            btn.onmousedown = () => btn.style.transform = 'scale(0.95)';
+            btn.onmouseup = () => btn.style.transform = 'scale(1)';
+            // This natively triggers the function in the main window!
+            btn.onclick = () => recordSplit(currentActiveIndex);
+        }
+    } else {
+        zone.innerHTML = `<div style="font-size: 1.8em; color: #4caf50; font-weight: bold;">RIDE COMPLETE!</div>`;
+    }
+}
+// ==========================================
+
 
 // --- Configuration & JSON Loader ---
 async function loadSegmentsConfig() {
@@ -123,17 +207,23 @@ function formatTime(totalSeconds) {
 
 function updateMainDelta(delta) {
     const el = document.getElementById('main-delta');
-    if (delta === null) {
-        el.textContent = "";
-        el.className = "";
-        return;
+    let txt = "", cls = "";
+    
+    if (delta !== null) {
+        txt = delta >= 0 ? `-${formatTime(delta)}` : `+${formatTime(Math.abs(delta))}`;
+        cls = delta >= 0 ? "ahead" : "behind";
     }
-    if (delta >= 0) {
-        el.textContent = `-${formatTime(delta)}`;
-        el.className = "ahead";
-    } else {
-        el.textContent = `+${formatTime(Math.abs(delta))}`;
-        el.className = "behind";
+    
+    el.textContent = txt;
+    el.className = cls;
+
+    // Sync to PiP window if it is open!
+    if (pipWindow) {
+        const pipEl = pipWindow.document.getElementById('pip-main-delta');
+        if (pipEl) {
+            pipEl.textContent = txt;
+            pipEl.style.color = delta >= 0 ? '#4caf50' : (delta < 0 ? '#f44336' : 'inherit');
+        }
     }
 }
 
@@ -195,6 +285,11 @@ function hardResetState(fullReset) {
     currentSegWattsData = new Array(activeSegments.length).fill(null);
     
     document.getElementById('timer').innerText = "00:00";
+    if (pipWindow) {
+        const pipTimer = pipWindow.document.getElementById('pip-timer');
+        if(pipTimer) pipTimer.innerText = "00:00";
+    }
+    
     updateMainDelta(null);
     document.getElementById('startBtn').style.backgroundColor = 'var(--zwift-orange)';
     document.getElementById('startBtn').innerText = "START";
@@ -218,6 +313,8 @@ function hardResetState(fullReset) {
         comparisonChart.data.datasets[5].data = currentSegTimeData;
         comparisonChart.update();
     }
+    
+    renderPipAction(); // Sync PiP UI
 }
 
 function startRide() {
@@ -227,6 +324,7 @@ function startRide() {
     document.getElementById('startBtn').innerText = "RIDING";
     document.getElementById('resetBtn').style.display = 'inline-block';
     
+    // Lock settings during ride
     document.getElementById('targetTimeInput').disabled = true;
     document.getElementById('splitSlider').disabled = true;
     document.getElementById('climbSelect').disabled = true;
@@ -237,10 +335,19 @@ function startRide() {
     document.getElementById('toggleSettingsBtn').style.display = 'none';
     
     renderActionDiv(currentActiveIndex); 
+    renderPipAction(); // Activate the massive PiP button!
     
     timerInterval = setInterval(() => {
         const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
-        document.getElementById('timer').innerText = formatTime(elapsedSec);
+        const timeStr = formatTime(elapsedSec);
+        
+        document.getElementById('timer').innerText = timeStr;
+        
+        // Push the ticking clock straight to the floating window
+        if (pipWindow) {
+            const pipTimer = pipWindow.document.getElementById('pip-timer');
+            if(pipTimer) pipTimer.innerText = timeStr;
+        }
     }, 1000);
 }
 
@@ -265,6 +372,8 @@ function recordSplit(index) {
     renderActionDiv(index);
     if (index > 0) renderActionDiv(index - 1); 
     if (index + 1 < activeSegments.length) renderActionDiv(index + 1); 
+    
+    renderPipAction(); // Update the PiP button to the next hairpin!
 }
 
 function undoSplit(index) {
@@ -291,6 +400,8 @@ function undoSplit(index) {
     renderActionDiv(index);
     if (index > 0) renderActionDiv(index - 1);
     if (index + 1 < activeSegments.length) renderActionDiv(index + 1);
+    
+    renderPipAction(); // Revert the PiP button
 }
 
 function updateComparisonWatts(index, element) {
