@@ -9,7 +9,7 @@
 }
 
 body { font-family: -apple-system, sans-serif; background-color: var(--bg-dark); color: #ffffff; padding: 10px; max-width: 1200px; margin: auto; touch-action: manipulation; }
-.sticky-zone { position: sticky; top: 0; background-color: var(--bg-dark); z-index: 100; padding: 10px 0; border-bottom: 2px solid #1e293b; margin-bottom: 15px; }
+.top-dashboard { background-color: var(--bg-dark); padding: 10px 0; border-bottom: 2px solid #1e293b; margin-bottom: 15px; position: relative; }
 
 .header-row { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
 h2 { margin: 0; color: var(--zwift-orange); font-size: 1.5em; display: flex; align-items: center; gap: 10px;}
@@ -33,7 +33,7 @@ h2 { margin: 0; color: var(--zwift-orange); font-size: 1.5em; display: flex; ali
 .strava-btn { background-color: #fc4c02; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; cursor: pointer; border: none;}
 
 .calculator-box { background-color: #ffffff; color: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-.calc-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.calc-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .calc-input { background: #f1f5f9; border: 1px solid #94a3b8; color: #0f172a; padding: 8px; border-radius: 4px; font-size: 1em; width: 100%; max-width: 140px; font-weight: bold; }
 .calc-input:disabled { opacity: 0.6; cursor: not-allowed; }
 .calc-btn { background-color: var(--target-blue); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
@@ -45,8 +45,14 @@ h2 { margin: 0; color: var(--zwift-orange); font-size: 1.5em; display: flex; ali
     .dashboard-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
-/* Control Card */
+/* Control Card & Custom Row Layouts */
 .control-card { background-color: #ffffff; color: #0f172a; border-radius: 8px; padding: 15px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05); }
+.control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.time-display-row { align-items: baseline; margin-top: 15px; }
+.timer-values { display: flex; align-items: baseline; gap: 15px; }
+
+#timer { font-size: 3.5em; font-variant-numeric: tabular-nums; font-weight: bold; color: #0f172a; line-height: 1;}
+#main-delta { font-size: 1.5em; font-weight: bold; font-variant-numeric: tabular-nums;}
 
 /* Slider Styles */
 .slider-container { display: flex; flex-direction: column; gap: 5px; width: 100%; }
@@ -54,15 +60,12 @@ h2 { margin: 0; color: var(--zwift-orange); font-size: 1.5em; display: flex; ali
 input[type=range] { width: 100%; accent-color: var(--zwift-orange); }
 input[type=range]:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* Timer Controls */
-#controls { display: flex; align-items: center; justify-content: space-between; }
-.timer-wrapper { display: flex; align-items: baseline; gap: 12px; }
-#timer { font-size: 3em; font-variant-numeric: tabular-nums; font-weight: bold; color: #0f172a; line-height: 1;}
-#main-delta { font-size: 1.5em; font-weight: bold; font-variant-numeric: tabular-nums;}
-.control-btns { display: flex; gap: 10px; }
-#startBtn { background-color: var(--zwift-orange); color: white; border: none; padding: 12px 25px; font-size: 1.2em; border-radius: 8px; font-weight: bold; cursor: pointer; }
+/* Buttons */
+.control-btns { display: flex; gap: 10px; width: 100%; }
+.centered-btns { justify-content: center; margin-top: 20px; }
+#startBtn { background-color: var(--zwift-orange); color: white; border: none; padding: 12px 25px; font-size: 1.2em; border-radius: 8px; font-weight: bold; cursor: pointer; flex-grow: 1; max-width: 200px; }
 #startBtn:disabled { opacity: 0.5; cursor: not-allowed; }
-#resetBtn { background-color: #f44336; color: white; border: none; padding: 12px 15px; font-size: 1.2em; border-radius: 8px; font-weight: bold; cursor: pointer; display: none; }
+#resetBtn { background-color: #f44336; color: white; border: none; padding: 12px 15px; font-size: 1.2em; border-radius: 8px; font-weight: bold; cursor: pointer; display: none; flex-grow: 1; max-width: 200px; }
 
 /* Chart Cards */
 .chart-container { background-color: #ffffff; border-radius: 8px; padding: 10px 15px; border: 1px solid #cbd5e1; display: flex; flex-direction: column; box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05); }
@@ -92,8 +95,39 @@ input[type=range]:disabled { opacity: 0.6; cursor: not-allowed; }
 .undo-btn { background: none; border: 1px solid #475569; color: #94a3b8; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
 .undo-btn:active { background: #334155; color: white;}
 .power-label { color: #94a3b8; font-size: 0.8em; margin-left: 5px;}
-
-/* Windows Keyboard Fix: Applied to power-input */
 .power-input { width: 55px; padding: 6px 3px; background-color: #1e293b; border-radius: 4px; text-align: center; font-size: 1em; font-weight: bold; color: white; border: 1px solid #1e293b; }
 .power-input::placeholder { color: #64748b; font-weight: normal;}
 .power-input:focus { outline: none; border-color: #3daee9; background-color: #334155; }
+
+/* =========================================
+   COCKPIT MODE (Mini Player)
+========================================= */
+body.cockpit-mode { overflow: hidden; } /* Prevent scrolling in mini player */
+body.cockpit-mode .header-row,
+body.cockpit-mode #settings-container,
+body.cockpit-mode #chart-wrapper-zone,
+body.cockpit-mode #toggle-charts-btn,
+body.cockpit-mode #strava-auth-zone,
+body.cockpit-mode #bmc-placeholder {
+    display: none !important;
+}
+
+body.cockpit-mode .control-card {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    z-index: 9999; border-radius: 0; margin: 0; border: none;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    background-color: var(--bg-dark); color: #fff;
+}
+body.cockpit-mode .control-card * { color: #fff !important; }
+body.cockpit-mode .control-row { width: 100%; justify-content: center; flex-direction: column; }
+body.cockpit-mode .calc-input { background: #1e293b; color: #fff !important; border-color: #475569; }
+body.cockpit-mode #timer { font-size: 5.5em; margin: 10px 0; }
+body.cockpit-mode #main-delta { font-size: 2.5em; }
+body.cockpit-mode #startBtn { font-size: 2em; padding: 20px; max-width: 80%; }
+body.cockpit-mode .ahead { color: var(--ahead-green) !important; }
+body.cockpit-mode .behind { color: var(--behind-red) !important; }
+
+/* Cockpit Dynamic Active Segment Zone */
+#cockpit-active-segment { display: none; text-align: center; margin-top: 20px; width: 100%; }
+body.cockpit-mode #cockpit-active-segment { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+body.cockpit-mode #segmentList { display: none; } /* Hide standard list */

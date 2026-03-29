@@ -1,218 +1,7 @@
 // ==========================================
-// DEV MODE TOGGLE (Set to false for Production)
+// js/engine.js - APIs, GPX Parsing & Math
 // ==========================================
-const DEV_MODE = false; 
 
-window.addEventListener('beforeunload', function (e) {
-    if (startTime) { e.preventDefault(); e.returnValue = ''; }
-});
-
-function openHelp() {
-    document.getElementById('helpModal').style.display = 'block';
-    document.getElementById('modalBackdrop').style.display = 'block';
-}
-function closeHelp() {
-    document.getElementById('helpModal').style.display = 'none';
-    document.getElementById('modalBackdrop').style.display = 'none';
-}
-
-const safeStorage = {
-    set: function(key, val) { try { window.localStorage.setItem(key, val); } catch(e) {} },
-    get: function(key) { try { return window.localStorage.getItem(key); } catch(e) { return null; } },
-    remove: function(key) { try { window.localStorage.removeItem(key); } catch(e) {} }
-};
-
-let stravaAccessToken = null;
-let climbsConfig = [];
-let currentClimb = null;
-let isDataLoaded = false;
-let isCockpitMode = false;
-
-let baseSegments = [];
-let activeSegments = [];
-let startTime = null;
-let timerInterval = null;
-let currentActiveIndex = 0;
-
-let actualCumSecData = [];
-let trendData = [];
-let currentSegTimeData = [];
-let currentSegWattsData = [];
-
-let pacingTrendChart, comparisonChart;
-
-function toggleSettings() {
-    const box = document.getElementById('data-settings-box');
-    const btn = document.getElementById('toggleSettingsBtn');
-    if (box.style.display === 'none') {
-        box.style.display = 'flex';
-        btn.innerHTML = '▼ Hide Settings';
-    } else {
-        box.style.display = 'none';
-        btn.innerHTML = '▶ Show Settings';
-    }
-}
-
-// --- Cockpit Mode Toggle ---
-function toggleCockpitMode() {
-    isCockpitMode = !isCockpitMode;
-    const body = document.body;
-    const btn = document.getElementById('cockpitToggleBtn');
-    
-    if (isCockpitMode) {
-        body.classList.add('cockpit-mode');
-        btn.innerHTML = '❌ Exit Cockpit';
-        btn.style.position = 'fixed';
-        btn.style.top = '10px';
-        btn.style.right = '10px';
-        btn.style.zIndex = '10000';
-    } else {
-        body.classList.remove('cockpit-mode');
-        btn.innerHTML = '🚀 Cockpit';
-        btn.style.position = 'static';
-        // Force list re-render to put the action buttons back into the list
-        if(isDataLoaded) renderList(); 
-    }
-    
-    // Immediately render the dynamic cockpit segment action if ride is ready
-    if (isCockpitMode && isDataLoaded) {
-        renderActionDiv(currentActiveIndex);
-    }
-}
-
-// --- Initialization & Caching ---
-function startStravaAuth() {
-    if (DEV_MODE) {
-        initAuth(); 
-    } else {
-        window.top.location.href = "/api/auth";
-    }
-}
-
-function initAuth() {
-    if (DEV_MODE) stravaAccessToken = "DEV_MODE_ACTIVE";
-    
-    let urlToken = null;
-    try {
-        const urlParams = new URLSearchParams(window.location.search);
-        urlToken = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
-    } catch(e) {}
-
-    if (urlToken) {
-        stravaAccessToken = urlToken;
-        safeStorage.set('strava_token', urlToken);
-        safeStorage.set('strava_expiry', (Date.now() + (5.5 * 60 * 60 * 1000)).toString());
-        try { window.history.replaceState({}, document.title, window.location.pathname); } catch(e) {}
-    } else if (!stravaAccessToken) {
-        const storedToken = safeStorage.get('strava_token');
-        const storedExpiry = safeStorage.get('strava_expiry');
-        if (storedToken && storedExpiry && Date.now() < parseInt(storedExpiry)) {
-            stravaAccessToken = storedToken;
-        }
-    }
-
-    if (stravaAccessToken) {
-        document.getElementById('strava-btn').style.display = 'none';
-        document.getElementById('settings-container').style.display = 'block';
-        document.getElementById('data-settings-box').style.display = 'flex'; 
-    }
-}
-
-async function loadSegmentsConfig() {
-    try {
-        const res = await fetch('./segments.json?t=' + Date.now());
-        climbsConfig = await res.json();
-        
-        // Add "Custom Route" option
-        climbsConfig.push({ name: "Other / Custom Route (GPX)", id: "custom", defaultTime: "01:00", subSegments: [] });
-
-        const selectEl = document.getElementById('climbSelect');
-        climbsConfig.forEach((climb, index) => {
-            const opt = document.createElement('option');
-            opt.value = index;
-            opt.textContent = climb.name;
-            selectEl.appendChild(opt);
-        });
-
-        selectEl.addEventListener('change', (e) => {
-            const selected = climbsConfig[e.target.value];
-            if (selected.id === "custom") {
-                document.getElementById('gpx-upload-zone').style.display = 'flex';
-                document.getElementById('strava-fetch-row').style.display = 'none';
-            } else {
-                document.getElementById('gpx-upload-zone').style.display = 'none';
-                document.getElementById('strava-fetch-row').style.display = 'flex';
-            }
-            loadClimbSkeleton(selected);
-        });
-
-        // CACHE CHECK: If we have a saved route, load it instantly!
-        const cachedDataStr = safeStorage.get('pacer_cache_data');
-        if (cachedDataStr) {
-            const cachedData = JSON.parse(cachedDataStr);
-            // Find the index of the cached climb to set the dropdown correctly
-            const climbIndex = climbsConfig.findIndex(c => c.name === cachedData.climbName);
-            if (climbIndex !== -1) {
-                selectEl.value = climbIndex;
-                currentClimb = climbsConfig[climbIndex];
-                
-                // Handle UI visibility based on what was cached
-                if (currentClimb.id === "custom") {
-                    document.getElementById('gpx-upload-zone').style.display = 'flex';
-                    document.getElementById('strava-fetch-row').style.display = 'none';
-                }
-
-                document.getElementById('title-text').innerText = `${currentClimb.name} Pacer`;
-                document.getElementById('targetTimeInput').value = cachedData.targetTimeStr;
-                
-                baseSegments = cachedData.baseSegments;
-                isDataLoaded = true;
-                
-                document.getElementById('startBtn').disabled = false;
-                document.getElementById('data-settings-box').style.display = 'none'; 
-                document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
-                
-                const statusEl = document.getElementById('strava-status');
-                statusEl.innerText = `✓ Cached PR Loaded!`;
-                statusEl.style.display = 'inline-block';
-                statusEl.className = "status-text ahead";
-                
-                applyNewTarget();
-                return; // Exit early so we don't load the default skeleton
-            }
-        }
-        
-        // If no cache, load default
-        if(climbsConfig.length > 0) loadClimbSkeleton(climbsConfig[0]);
-        
-    } catch (e) {
-        console.error("Config Error:", e);
-    }
-}
-
-function loadClimbSkeleton(climb) {
-    currentClimb = climb;
-    isDataLoaded = false;
-    document.getElementById('title-text').innerText = `${climb.name} Pacer`;
-    document.getElementById('targetTimeInput').value = climb.defaultTime;
-    document.getElementById('startBtn').disabled = true;
-    document.getElementById('strava-status').style.display = 'none';
-    
-    baseSegments = climb.subSegments.map(name => ({
-        name: name, targetCumSec: null, targetPower: null, prevSegSec: null, prevWatts: null
-    }));
-    
-    applyNewTarget(); 
-}
-
-function clearCacheAndReset() {
-    safeStorage.remove('pacer_cache_data');
-    alert("Cache cleared. Ready to fetch new data.");
-    loadClimbSkeleton(currentClimb);
-    document.getElementById('data-settings-box').style.display = 'flex'; 
-}
-
-// --- Data Fetching Router ---
 function processDataRequest() {
     if (currentClimb.id === "custom") {
         parseGPXFile();
@@ -221,7 +10,6 @@ function processDataRequest() {
     }
 }
 
-// --- 1. Strava Fetch Engine ---
 async function fetchUserData() {
     if (!stravaAccessToken || !currentClimb) return;
 
@@ -254,7 +42,6 @@ async function fetchUserData() {
             headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
         });
         
-        // RATE LIMIT FALLBACK HANDLING
         if (effortsRes.status === 429) {
             statusEl.innerHTML = `⚠️ Strava Limit Reached. Use Custom Route (GPX) mode. <a href="https://www.strava.com/athlete/training" target="_blank" style="color:white; text-decoration:underline;">Export GPX here</a>`;
             statusEl.classList.add("behind");
@@ -320,7 +107,6 @@ async function fetchUserData() {
     }
 }
 
-// --- 2. GPX Parser Engine (The Fallback) ---
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
     const R = 6371; 
     const dLat = (lat2-lat1) * (Math.PI/180);
@@ -373,7 +159,6 @@ function parseGPXFile() {
                 
                 cumulativeKm += getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2);
                 
-                // Extract Power (usually in extensions -> power)
                 let ext = trkpts[i].getElementsByTagName("extensions")[0];
                 if (ext) {
                     let pwrNode = ext.getElementsByTagName("power")[0];
@@ -383,13 +168,11 @@ function parseGPXFile() {
                     }
                 }
 
-                // Check if we hit the distance interval split!
                 if (cumulativeKm >= targetNextSplitKm || i === trkpts.length - 1) {
                     let endPointTime = new Date(trkpts[i].getElementsByTagName("time")[0].textContent).getTime();
                     let segSecs = Math.round((endPointTime - startPointTime) / 1000);
                     let avgWatts = currentSegmentWattsCount > 0 ? Math.round(currentSegmentWattsSum / currentSegmentWattsCount) : 0;
                     
-                    let splitNum = generatedSegments.length + 1;
                     let segName = i === trkpts.length - 1 ? "Finish" : `Km ${targetNextSplitKm.toFixed(1)}`;
 
                     generatedSegments.push({
@@ -399,7 +182,6 @@ function parseGPXFile() {
                         targetCumSec: null, targetPower: null
                     });
 
-                    // Reset for next chunk
                     startPointTime = endPointTime;
                     currentSegmentWattsSum = 0;
                     currentSegmentWattsCount = 0;
@@ -418,7 +200,6 @@ function parseGPXFile() {
     reader.readAsText(fileInput.files[0]);
 }
 
-// --- Success Handler & Cache Saver ---
 function saveAndLoadData(segmentDataArray, successMsg) {
     baseSegments = segmentDataArray; 
     isDataLoaded = true; 
@@ -431,9 +212,8 @@ function saveAndLoadData(segmentDataArray, successMsg) {
     statusEl.innerText = `✓ ${successMsg}`;
     statusEl.className = "status-text ahead";
 
-    applyNewTarget(); // Calculate targets first
+    applyNewTarget(); 
 
-    // Save to Cache
     const cacheObject = {
         climbName: currentClimb.name,
         targetTimeStr: document.getElementById('targetTimeInput').value,
@@ -442,8 +222,6 @@ function saveAndLoadData(segmentDataArray, successMsg) {
     safeStorage.set('pacer_cache_data', JSON.stringify(cacheObject));
 }
 
-
-// --- Pacing Calculator Logic ---
 function parseTimeToSeconds(timeStr) {
     if(!timeStr) return 0;
     const parts = timeStr.split(':');
@@ -451,30 +229,6 @@ function parseTimeToSeconds(timeStr) {
         return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
     }
     return (parseInt(parts[0]) || 0) * 60;
-}
-
-function formatTime(totalSeconds) {
-    if (totalSeconds === null || totalSeconds === undefined || isNaN(totalSeconds)) return "--:--";
-    const absSec = Math.abs(Math.round(totalSeconds));
-    const m = Math.floor(absSec / 60).toString().padStart(2, '0');
-    const s = (absSec % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-}
-
-function updateMainDelta(delta) {
-    const el = document.getElementById('main-delta');
-    if (delta === null) {
-        el.textContent = "";
-        el.className = "";
-        return;
-    }
-    if (delta >= 0) {
-        el.textContent = `-${formatTime(delta)}`;
-        el.className = "ahead";
-    } else {
-        el.textContent = `+${formatTime(Math.abs(delta))}`;
-        el.className = "behind";
-    }
 }
 
 function applyNewTarget() {
@@ -511,4 +265,16 @@ function applyNewTarget() {
     });
 
     document.getElementById('title-text').innerText = `${currentClimb.name} (${formatTime(targetSeconds)})`;
-    ha
+    hardResetState(false); 
+    renderList();
+    
+    if (isDataLoaded) {
+        const cacheStr = safeStorage.get('pacer_cache_data');
+        if (cacheStr) {
+            let cacheObj = JSON.parse(cacheStr);
+            cacheObj.targetTimeStr = document.getElementById('targetTimeInput').value;
+            cacheObj.baseSegments = activeSegments; 
+            safeStorage.set('pacer_cache_data', JSON.stringify(cacheObj));
+        }
+    }
+}
