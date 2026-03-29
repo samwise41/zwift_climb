@@ -92,6 +92,12 @@ async function fetchUserData() {
         let personalizedSegments = [];
         let missingSegments = [];
 
+        if (!activityData || !activityData.segment_efforts) {
+            statusEl.innerHTML = `⚠️ Strava hid the sub-segments. Use the GPX Fallback!`;
+            statusEl.classList.add("behind");
+            return;
+        }
+        
         for (let targetName of currentClimb.subSegments) {
             const regex = new RegExp("\\b" + targetName + "(?:\\b|\\s|$)", "i");
             const match = activityData.segment_efforts.find(seg => regex.test(seg.name));
