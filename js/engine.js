@@ -78,7 +78,7 @@ async function fetchUserData() {
 
         statusEl.innerText = `⏳ Loading full activity...`;
 
-        const activityRes = await fetch(`https://www.strava.com/api/v3/activities/${targetEffort.activity.id}`, {
+const activityRes = await fetch(`https://www.strava.com/api/v3/activities/${targetEffort.activity.id}?include_all_efforts=true`, {
             headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
         });
         
