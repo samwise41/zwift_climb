@@ -121,25 +121,46 @@ async function toggleCockpitMode() {
 }
 
 // Dynamically renders the giant split button inside the PiP window
+// Dynamically renders the giant split button AND the Undo button inside the PiP window
 function renderPipAction() {
     if (!pipWindow || !isDataLoaded) return;
     const zone = pipWindow.document.getElementById('pip-action-zone');
 
+    let html = '';
+
+    // 1. The Main Split Button (or Completion Message)
     if (currentActiveIndex < activeSegments.length) {
         const disabledStyle = !startTime ? 'opacity: 0.5; cursor: not-allowed; background-color: #334155;' : 'cursor: pointer; background-color: #fc6719;';
         const btnText = !startTime ? "Waiting to Start..." : `Split: ${activeSegments[currentActiveIndex].name}`;
 
-        zone.innerHTML = `<button id="pip-split-btn" style="color: white; border: none; padding: 15px 20px; border-radius: 8px; font-weight: bold; font-size: 1.3em; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; ${disabledStyle}">${btnText}</button>`;
-
-        const btn = pipWindow.document.getElementById('pip-split-btn');
-        if (btn && startTime) {
-            btn.onmousedown = () => btn.style.transform = 'scale(0.95)';
-            btn.onmouseup = () => btn.style.transform = 'scale(1)';
-            // This natively triggers the function in the main window!
-            btn.onclick = () => recordSplit(currentActiveIndex);
-        }
+        html += `<button id="pip-split-btn" style="color: white; border: none; padding: 15px 20px; border-radius: 8px; font-weight: bold; font-size: 1.3em; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; ${disabledStyle}">${btnText}</button>`;
     } else {
-        zone.innerHTML = `<div style="font-size: 1.8em; color: #4caf50; font-weight: bold;">RIDE COMPLETE!</div>`;
+        html += `<div style="font-size: 1.8em; color: #4caf50; font-weight: bold;">RIDE COMPLETE!</div>`;
+    }
+
+    // 2. The Undo Button (Only show if we've completed at least one split and ride has started)
+    if (currentActiveIndex > 0 && startTime) {
+        const lastSegmentName = activeSegments[currentActiveIndex - 1].name;
+        html += `<div style="margin-top: 15px;">
+                    <button id="pip-undo-btn" style="background: none; border: 1px solid #94a3b8; color: #94a3b8; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: transform 0.1s;">↺ Undo: ${lastSegmentName}</button>
+                 </div>`;
+    }
+
+    zone.innerHTML = html;
+
+    // 3. Attach the event listeners natively to the floating window elements
+    const splitBtn = pipWindow.document.getElementById('pip-split-btn');
+    if (splitBtn && startTime) {
+        splitBtn.onmousedown = () => splitBtn.style.transform = 'scale(0.95)';
+        splitBtn.onmouseup = () => splitBtn.style.transform = 'scale(1)';
+        splitBtn.onclick = () => recordSplit(currentActiveIndex);
+    }
+
+    const undoBtn = pipWindow.document.getElementById('pip-undo-btn');
+    if (undoBtn) {
+        undoBtn.onmousedown = () => undoBtn.style.transform = 'scale(0.95)';
+        undoBtn.onmouseup = () => undoBtn.style.transform = 'scale(1)';
+        undoBtn.onclick = () => undoSplit(currentActiveIndex - 1);
     }
 }
 // ==========================================
@@ -401,7 +422,7 @@ function undoSplit(index) {
     if (index > 0) renderActionDiv(index - 1);
     if (index + 1 < activeSegments.length) renderActionDiv(index + 1);
     
-    renderPipAction(); // Revert the PiP button
+    renderPipAction(); // <-- CRITICAL: Tells the PiP window to update and hide the undo button
 }
 
 function updateComparisonWatts(index, element) {
