@@ -180,3 +180,19 @@ body.cockpit-mode #cockpit-active-segment {
     display: flex; flex-direction: column; align-items: center; 
     width: 100%; max-width: 400px; margin-top: 20px; 
 }
+/* Mobile Cockpit Exit Button */
+#mobile-cockpit-close { display: none; }
+body.cockpit-mode #mobile-cockpit-close {
+    display: block !important;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: #1e293b;
+    border: 2px solid #f44336;
+    color: #f44336 !important;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 10000;
+}
