@@ -1,7 +1,7 @@
 // ==========================================
 // js/state.js - Core State & Authentication
 // ==========================================
-const DEV_MODE = false; 
+const DEV_MODE = true; 
 
 const safeStorage = {
     set: function(key, val) { try { window.localStorage.setItem(key, val); } catch(e) {} },
@@ -14,8 +14,10 @@ let stravaAccessToken = null;
 let climbsConfig = [];
 let currentClimb = null;
 let isDataLoaded = false;
-let isCockpitMode = false;
-let effortDateStr = ""; // NEW: Tracks the date of the effort
+let effortDateStr = ""; 
+
+// NEW: Tracks the native pop-out window
+let pipWindow = null; 
 
 let baseSegments = [];
 let activeSegments = [];
@@ -113,7 +115,6 @@ async function loadSegmentsConfig() {
                 baseSegments = cachedData.baseSegments;
                 isDataLoaded = true;
                 
-                // Set the Date Display from Cache
                 effortDateStr = cachedData.effortDateStr || "";
                 const dateEl = document.getElementById('effort-date-display');
                 if (effortDateStr) {
@@ -147,9 +148,9 @@ async function loadSegmentsConfig() {
 function loadClimbSkeleton(climb) {
     currentClimb = climb;
     isDataLoaded = false;
-    effortDateStr = ""; // Clear the date memory
+    effortDateStr = ""; 
     document.getElementById('title-text').innerText = `${climb.name} Pacer`;
-    document.getElementById('effort-date-display').style.display = 'none'; // Hide the date UI
+    document.getElementById('effort-date-display').style.display = 'none'; 
     document.getElementById('targetTimeInput').value = climb.defaultTime;
     document.getElementById('startBtn').disabled = true;
     document.getElementById('strava-status').style.display = 'none';
