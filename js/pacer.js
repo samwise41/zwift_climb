@@ -11,7 +11,6 @@ window.addEventListener('beforeunload', function (e) {
     }
 });
 
-// --- Help Modal Functions ---
 function openHelp() {
     document.getElementById('helpModal').style.display = 'block';
     document.getElementById('modalBackdrop').style.display = 'block';
@@ -21,7 +20,6 @@ function closeHelp() {
     document.getElementById('modalBackdrop').style.display = 'none';
 }
 
-// --- Safe Storage Wrapper ---
 const safeStorage = {
     set: function(key, val) { try { window.localStorage.setItem(key, val); } catch(e) {} },
     get: function(key) { try { return window.localStorage.getItem(key); } catch(e) { return null; } },
@@ -33,10 +31,7 @@ let stravaAccessToken = null;
 let climbsConfig = [];
 let currentClimb = null;
 let isDataLoaded = false;
-
-// NEW: Caching State
-let effortDateStr = ""; 
-let pipWindow = null; 
+let isCockpitMode = false; // NEW: Tracks overlay state
 
 let baseSegments = [];
 let activeSegments = [];
@@ -45,7 +40,6 @@ let startTime = null;
 let timerInterval = null;
 let currentActiveIndex = 0;
 
-// Ride Data Arrays
 let actualCumSecData = [];
 let trendData = [];
 let currentSegTimeData = [];
@@ -66,97 +60,64 @@ function toggleSettings() {
 }
 
 // ==========================================
-// TRUE FLOATING COCKPIT (Document PiP API)
+// COCKPIT MODE (Universal DOM Overlay)
 // ==========================================
-async function toggleCockpitMode() {
+function toggleCockpitMode() {
+    isCockpitMode = !isCockpitMode;
+    const body = document.body;
     const btn = document.getElementById('cockpitToggleBtn');
 
-    if (!('documentPictureInPicture' in window)) {
-        alert("Your browser does not support true floating windows yet! Please use Google Chrome or Microsoft Edge on a Desktop/Laptop to hover over Zwift.");
-        return;
-    }
-
-    if (pipWindow) {
-        pipWindow.close();
-        return;
-    }
-
-    try {
-        pipWindow = await documentPictureInPicture.requestWindow({
-            width: 320,
-            height: 280
-        });
-
-        pipWindow.document.body.innerHTML = `
-            <div style="background-color: #0f172a; color: white; height: 100vh; width: 100vw; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; position: absolute; top: 0; left: 0;">
-                <div style="font-size: 1.2em; color: #3daee9; margin-bottom: 5px; text-align: center; font-weight: bold;">${currentClimb ? currentClimb.name : 'Climb Pacer'}</div>
-                <div id="pip-timer" style="font-size: 4.5em; font-weight: bold; font-variant-numeric: tabular-nums; line-height: 1; margin: 5px 0;">${document.getElementById('timer').innerText}</div>
-                <div id="pip-main-delta" style="font-size: 2em; font-weight: bold; margin-bottom: 20px;">${document.getElementById('main-delta').innerText}</div>
-                <div id="pip-action-zone" style="width: 100%; text-align: center;"></div>
-            </div>
-        `;
-
-        const mainDeltaEl = document.getElementById('main-delta');
-        const pipDeltaEl = pipWindow.document.getElementById('pip-main-delta');
-        if (mainDeltaEl.classList.contains('ahead')) pipDeltaEl.style.color = '#4caf50';
-        if (mainDeltaEl.classList.contains('behind')) pipDeltaEl.style.color = '#f44336';
-
-        renderPipAction(); 
-
-        pipWindow.addEventListener("pagehide", (event) => {
-            pipWindow = null;
-            btn.innerHTML = '🚀 Cockpit';
-        });
-
+    if (isCockpitMode) {
+        body.classList.add('cockpit-mode');
         btn.innerHTML = '❌ Close Cockpit';
+        // Anchor the close button to the top right of the screen
+        btn.style.position = 'fixed';
+        btn.style.top = '15px';
+        btn.style.right = '15px';
+        btn.style.zIndex = '10000';
+    } else {
+        body.classList.remove('cockpit-mode');
+        btn.innerHTML = '🚀 Cockpit';
+        btn.style.position = 'static';
+        // Re-render the standard list just in case
+        if (isDataLoaded) renderList(); 
+    }
 
-    } catch (error) {
-        console.error("PiP failed to open:", error);
+    if (isCockpitMode && isDataLoaded) {
+        renderCockpitAction();
     }
 }
 
-function renderPipAction() {
-    if (!pipWindow || !isDataLoaded) return;
-    const zone = pipWindow.document.getElementById('pip-action-zone');
+function renderCockpitAction() {
+    const cockpitZone = document.getElementById('cockpit-active-segment');
+    if (!cockpitZone || !isCockpitMode) return;
 
-    let html = '';
-
+    let html = "";
+    
+    // 1. Render Main Action Button
     if (currentActiveIndex < activeSegments.length) {
-        const disabledStyle = !startTime ? 'opacity: 0.5; cursor: not-allowed; background-color: #334155;' : 'cursor: pointer; background-color: #fc6719;';
+        const disabledState = !startTime ? 'disabled style="opacity:0.5; cursor:not-allowed; background-color:#334155;"' : 'style="background-color: var(--zwift-orange); cursor: pointer;"';
         const btnText = !startTime ? "Waiting to Start..." : `Split: ${activeSegments[currentActiveIndex].name}`;
 
-        html += `<button id="pip-split-btn" style="color: white; border: none; padding: 15px 20px; border-radius: 8px; font-weight: bold; font-size: 1.3em; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; ${disabledStyle}">${btnText}</button>`;
+        html += `<div style="font-size: 1.2em; margin-bottom: 10px; color: var(--target-blue);">Next: ${activeSegments[currentActiveIndex].name}</div>`;
+        html += `<button class="split-btn" ${disabledState} onclick="recordSplit(${currentActiveIndex})" style="width: 100%; padding: 20px; font-size: 1.5em; border-radius: 12px; font-weight: bold; border: none; color: white;">${btnText}</button>`;
     } else {
-        html += `<div style="font-size: 1.8em; color: #4caf50; font-weight: bold;">RIDE COMPLETE!</div>`;
+        html += `<div style="font-size: 2em; color: var(--ahead-green); font-weight: bold;">RIDE COMPLETE!</div>`;
     }
 
+    // 2. Render Undo Button (Only if ride has started and at least 1 split is done)
     if (currentActiveIndex > 0 && startTime) {
         const lastSegmentName = activeSegments[currentActiveIndex - 1].name;
-        html += `<div style="margin-top: 15px;">
-                    <button id="pip-undo-btn" style="background: none; border: 1px solid #94a3b8; color: #94a3b8; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: transform 0.1s;">↺ Undo: ${lastSegmentName}</button>
+        html += `<div style="margin-top: 25px;">
+                    <button class="undo-btn" onclick="undoSplit(${currentActiveIndex - 1})" style="background: none; border: 1px solid #94a3b8; color: #94a3b8; padding: 10px 20px; font-size: 1.1em; border-radius: 8px; cursor: pointer;">↺ Undo: ${lastSegmentName}</button>
                  </div>`;
     }
 
-    zone.innerHTML = html;
-
-    const splitBtn = pipWindow.document.getElementById('pip-split-btn');
-    if (splitBtn && startTime) {
-        splitBtn.onmousedown = () => splitBtn.style.transform = 'scale(0.95)';
-        splitBtn.onmouseup = () => splitBtn.style.transform = 'scale(1)';
-        splitBtn.onclick = () => recordSplit(currentActiveIndex);
-    }
-
-    const undoBtn = pipWindow.document.getElementById('pip-undo-btn');
-    if (undoBtn) {
-        undoBtn.onmousedown = () => undoBtn.style.transform = 'scale(0.95)';
-        undoBtn.onmouseup = () => undoBtn.style.transform = 'scale(1)';
-        undoBtn.onclick = () => undoSplit(currentActiveIndex - 1);
-    }
+    cockpitZone.innerHTML = html;
 }
 // ==========================================
 
 
-// --- Auth Gatekeeper (Triggered by Button Click) ---
 function startStravaAuth() {
     if (DEV_MODE) {
         initAuth(); 
@@ -165,7 +126,6 @@ function startStravaAuth() {
     }
 }
 
-// --- Auth & Persistence Logic ---
 function initAuth() {
     if (DEV_MODE) {
         stravaAccessToken = "DEV_MODE_ACTIVE";
@@ -217,7 +177,6 @@ function initAuth() {
     }
 }
 
-// --- Configuration & JSON Loader ---
 async function loadSegmentsConfig() {
     try {
         const res = await fetch('./segments.json?t=' + Date.now());
@@ -233,47 +192,6 @@ async function loadSegmentsConfig() {
 
         selectEl.addEventListener('change', (e) => loadClimbSkeleton(climbsConfig[e.target.value]));
         
-        // --- CACHE CHECK ON BOOT ---
-        const cachedDataStr = safeStorage.get('pacer_cache_data');
-        if (cachedDataStr) {
-            const cachedData = JSON.parse(cachedDataStr);
-            const climbIndex = climbsConfig.findIndex(c => c.name === cachedData.climbName);
-            
-            if (climbIndex !== -1) {
-                selectEl.value = climbIndex;
-                currentClimb = climbsConfig[climbIndex];
-
-                document.getElementById('title-text').innerText = `${currentClimb.name} Pacer`;
-                document.getElementById('targetTimeInput').value = cachedData.targetTimeStr;
-                
-                baseSegments = cachedData.baseSegments;
-                isDataLoaded = true;
-                
-                effortDateStr = cachedData.effortDateStr || "";
-                const dateEl = document.getElementById('effort-date-display');
-                if (dateEl) {
-                    if (effortDateStr) {
-                        dateEl.innerText = `Baseline Effort: ${effortDateStr}`;
-                        dateEl.style.display = 'block';
-                    } else {
-                        dateEl.style.display = 'none';
-                    }
-                }
-                
-                document.getElementById('startBtn').disabled = false;
-                document.getElementById('data-settings-box').style.display = 'none'; 
-                document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
-                
-                const statusEl = document.getElementById('strava-status');
-                statusEl.innerText = `✓ Cached Activity Loaded!`;
-                statusEl.style.display = 'inline-block';
-                statusEl.className = "status-text ahead";
-                
-                applyNewTarget();
-                return; // Exit early to prevent default skeleton loading
-            }
-        }
-        
         if(climbsConfig.length > 0) {
             loadClimbSkeleton(climbsConfig[0]);
         }
@@ -286,10 +204,7 @@ async function loadSegmentsConfig() {
 function loadClimbSkeleton(climb) {
     currentClimb = climb;
     isDataLoaded = false;
-    effortDateStr = "";
-    
     document.getElementById('title-text').innerText = `${climb.name} Pacer`;
-    document.getElementById('effort-date-display').style.display = 'none';
     document.getElementById('targetTimeInput').value = climb.defaultTime;
     
     document.getElementById('startBtn').disabled = true;
@@ -303,51 +218,6 @@ function loadClimbSkeleton(climb) {
     applyNewTarget(); 
 }
 
-function clearCacheAndReset() {
-    safeStorage.remove('pacer_cache_data');
-    alert("Saved data cleared. Ready to fetch new data.");
-    loadClimbSkeleton(currentClimb);
-    document.getElementById('data-settings-box').style.display = 'flex'; 
-    document.getElementById('toggleSettingsBtn').innerHTML = '▼ Hide Settings';
-}
-
-// --- Success Handler & Cache Saver ---
-function saveAndLoadData(segmentDataArray, successMsg, dateStr = "") {
-    baseSegments = segmentDataArray; 
-    effortDateStr = dateStr;
-    isDataLoaded = true; 
-    
-    document.getElementById('startBtn').disabled = false;
-    document.getElementById('data-settings-box').style.display = 'none'; 
-    document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
-    
-    const statusEl = document.getElementById('strava-status');
-    statusEl.innerText = `✓ ${successMsg}`;
-    statusEl.style.display = 'inline-block';
-    statusEl.className = "status-text ahead";
-
-    const dateEl = document.getElementById('effort-date-display');
-    if (dateEl) {
-        if (effortDateStr) {
-            dateEl.innerText = `Baseline Effort: ${effortDateStr}`;
-            dateEl.style.display = 'block';
-        } else {
-            dateEl.style.display = 'none';
-        }
-    }
-
-    applyNewTarget(); 
-
-    const cacheObject = {
-        climbName: currentClimb.name,
-        targetTimeStr: document.getElementById('targetTimeInput').value,
-        baseSegments: baseSegments,
-        effortDateStr: effortDateStr
-    };
-    safeStorage.set('pacer_cache_data', JSON.stringify(cacheObject));
-}
-
-// --- Strava API Fetcher ---
 async function fetchUserData() {
     if (!stravaAccessToken || !currentClimb) return;
 
@@ -374,7 +244,15 @@ async function fetchUserData() {
                 });
             }
 
-            saveAndLoadData(dummySegments, "DEV MODE Data Loaded", "Today (Dev Mode)");
+            baseSegments = dummySegments; 
+            isDataLoaded = true; 
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('data-settings-box').style.display = 'none'; 
+            document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
+            applyNewTarget(); 
+            
+            statusEl.innerText = `✓ DEV MODE Data Loaded!`;
+            statusEl.classList.add("ahead");
         }, 600); 
         return;
     }
@@ -411,10 +289,6 @@ async function fetchUserData() {
         const targetEffort = effortsData[0];
         const activityId = targetEffort.activity.id;
 
-        // Extract Date
-        const effortDateObj = new Date(targetEffort.start_date_local || targetEffort.start_date);
-        const formattedDate = effortDateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-
         statusEl.innerText = `⏳ Loading activity...`;
 
         const activityRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
@@ -426,7 +300,6 @@ async function fetchUserData() {
         let personalizedSegments = [];
         let missingSegments = [];
 
-        // Note: Using the exact Regex matcher from your stable version
         for (let targetName of currentClimb.subSegments) {
             const regex = new RegExp("\\b" + targetName + "(?:\\b|\\s|$)", "i");
             const match = segmentEfforts.find(seg => regex.test(seg.name));
@@ -444,8 +317,17 @@ async function fetchUserData() {
         }
 
         if (missingSegments.length === 0) {
-            const successMsg = attemptType === 'best' ? "PR Loaded!" : "Recent Effort Loaded!";
-            saveAndLoadData(personalizedSegments, successMsg, formattedDate);
+            baseSegments = personalizedSegments; 
+            isDataLoaded = true; 
+            
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('data-settings-box').style.display = 'none'; 
+            document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
+
+            applyNewTarget(); 
+            
+            statusEl.innerText = `✓ PR Loaded! Ready to pace.`;
+            statusEl.classList.add("ahead");
         } else {
             console.warn("⚠️ Missing Sub-Segments:", missingSegments);
             statusEl.innerText = `⚠️ Missing ${missingSegments.length} hairpins.`;
@@ -458,7 +340,6 @@ async function fetchUserData() {
     }
 }
 
-// --- Pacing Calculator Logic ---
 function parseTimeToSeconds(timeStr) {
     if(!timeStr) return 0;
     const parts = timeStr.split(':');
@@ -478,22 +359,17 @@ function formatTime(totalSeconds) {
 
 function updateMainDelta(delta) {
     const el = document.getElementById('main-delta');
-    let txt = "", cls = "";
-    
-    if (delta !== null) {
-        txt = delta >= 0 ? `-${formatTime(delta)}` : `+${formatTime(Math.abs(delta))}`;
-        cls = delta >= 0 ? "ahead" : "behind";
+    if (delta === null) {
+        el.textContent = "";
+        el.className = "";
+        return;
     }
-    
-    el.textContent = txt;
-    el.className = cls;
-
-    if (pipWindow) {
-        const pipEl = pipWindow.document.getElementById('pip-main-delta');
-        if (pipEl) {
-            pipEl.textContent = txt;
-            pipEl.style.color = delta >= 0 ? '#4caf50' : (delta < 0 ? '#f44336' : 'inherit');
-        }
+    if (delta >= 0) {
+        el.textContent = `-${formatTime(delta)}`;
+        el.className = "ahead";
+    } else {
+        el.textContent = `+${formatTime(Math.abs(delta))}`;
+        el.className = "behind";
     }
 }
 
@@ -533,20 +409,8 @@ function applyNewTarget() {
     document.getElementById('title-text').innerText = `${currentClimb.name} (${formatTime(targetSeconds)})`;
     hardResetState(false); 
     renderList();
-
-    // Update Cache When Target Time Slider Changes
-    if (isDataLoaded) {
-        const cacheStr = safeStorage.get('pacer_cache_data');
-        if (cacheStr) {
-            let cacheObj = JSON.parse(cacheStr);
-            cacheObj.targetTimeStr = document.getElementById('targetTimeInput').value;
-            cacheObj.baseSegments = activeSegments;
-            safeStorage.set('pacer_cache_data', JSON.stringify(cacheObj));
-        }
-    }
 }
 
-// --- UI & Ride Logic ---
 function resetRideProgress() {
     if(confirm("Are you sure you want to reset? All current ride progress will be lost.")) {
         hardResetState(true);
@@ -566,11 +430,6 @@ function hardResetState(fullReset) {
     currentSegWattsData = new Array(activeSegments.length).fill(null);
     
     document.getElementById('timer').innerText = "00:00";
-    if (pipWindow) {
-        const pipTimer = pipWindow.document.getElementById('pip-timer');
-        if(pipTimer) pipTimer.innerText = "00:00";
-    }
-    
     updateMainDelta(null);
     document.getElementById('startBtn').style.backgroundColor = 'var(--zwift-orange)';
     document.getElementById('startBtn').innerText = "START";
@@ -595,7 +454,7 @@ function hardResetState(fullReset) {
         comparisonChart.update();
     }
 
-    renderPipAction();
+    renderCockpitAction(); // Sync cockpit display
 }
 
 function startRide() {
@@ -605,7 +464,6 @@ function startRide() {
     document.getElementById('startBtn').innerText = "RIDING";
     document.getElementById('resetBtn').style.display = 'inline-block';
     
-    // Lock settings during ride
     document.getElementById('targetTimeInput').disabled = true;
     document.getElementById('splitSlider').disabled = true;
     document.getElementById('climbSelect').disabled = true;
@@ -616,17 +474,11 @@ function startRide() {
     document.getElementById('toggleSettingsBtn').style.display = 'none';
     
     renderActionDiv(currentActiveIndex); 
-    renderPipAction();
+    renderCockpitAction(); // Sync cockpit display
     
     timerInterval = setInterval(() => {
         const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
-        const timeStr = formatTime(elapsedSec);
-        document.getElementById('timer').innerText = timeStr;
-        
-        if (pipWindow) {
-            const pipTimer = pipWindow.document.getElementById('pip-timer');
-            if(pipTimer) pipTimer.innerText = timeStr;
-        }
+        document.getElementById('timer').innerText = formatTime(elapsedSec);
     }, 1000);
 }
 
@@ -651,8 +503,8 @@ function recordSplit(index) {
     renderActionDiv(index);
     if (index > 0) renderActionDiv(index - 1); 
     if (index + 1 < activeSegments.length) renderActionDiv(index + 1); 
-    
-    renderPipAction();
+
+    renderCockpitAction(); // Sync cockpit display
 }
 
 function undoSplit(index) {
@@ -680,7 +532,7 @@ function undoSplit(index) {
     if (index > 0) renderActionDiv(index - 1);
     if (index + 1 < activeSegments.length) renderActionDiv(index + 1);
 
-    renderPipAction();
+    renderCockpitAction(); // Sync cockpit display
 }
 
 function updateComparisonWatts(index, element) {
