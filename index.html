@@ -24,11 +24,13 @@
 
     <div class="top-dashboard" style="position: relative;">
 
-        <div class="header-row">
+        <div class="header-row" style="margin-bottom: 5px;">
             <h2><span id="title-text">Climb Pacer</span> <div class="help-icon" onclick="openHelp()">?</div></h2>
             <div id="strava-status" class="status-text"></div>
             <button id="cockpitToggleBtn" onclick="toggleCockpitMode()" style="background: none; border: 1px solid var(--zwift-orange); color: var(--zwift-orange); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: bold; margin-left: 10px;">🚀 Cockpit</button>
         </div>
+        
+        <div id="effort-date-display" style="text-align: center; font-size: 0.85em; color: #94a3b8; margin-bottom: 15px; display: none;"></div>
         
         <div id="strava-auth-zone">
             <button id="strava-btn" class="strava-btn" onclick="startStravaAuth()">Connect Strava to fetch PR</button>
@@ -71,7 +73,6 @@
         </div>
 
         <div class="dashboard-grid">
-            
             <div class="control-card">
                 <div>
                     <div class="control-row">
@@ -104,8 +105,7 @@
                     <button id="startBtn" onclick="startRide()" disabled>START</button>
                 </div>
 
-                <div id="cockpit-active-segment">
-                    </div>
+                <div id="cockpit-active-segment"></div>
             </div>
 
             <div id="toggle-charts-btn" style="grid-column: 1 / -1; text-align: right;">
@@ -128,9 +128,9 @@
 
     <div id="segmentList"></div>
 
-    <script src="js/state.js?v=5"></script>
-    <script src="js/engine.js?v=5"></script>
-    <script src="js/ui.js?v=5"></script>
+    <script src="js/state.js?v=6"></script>
+    <script src="js/engine.js?v=6"></script>
+    <script src="js/ui.js?v=6"></script>
     
 </body>
 </html>
