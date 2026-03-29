@@ -29,13 +29,12 @@ async function fetchUserData() {
                 let mockWatts = 210 + Math.floor(Math.random() * 60); 
                 dummySegments.push({ name: currentClimb.subSegments[i], prevSegSec: mockSegSec, prevWatts: mockWatts, targetCumSec: null, targetPower: null });
             }
-            saveAndLoadData(dummySegments, "DEV MODE Data Loaded");
+            saveAndLoadData(dummySegments, "DEV MODE Data Loaded", "Today (Dev Mode)");
         }, 600); 
         return;
     }
 
     const attemptType = document.getElementById('attemptSelect').value;
-    // Always fetch 50 so we can accurately sort for either "best" or "most recent"
     const fetchLimit = 50; 
 
     try {
@@ -65,16 +64,18 @@ async function fetchUserData() {
             return;
         }
 
-        // --- SORTING LOGIC FIX ---
         if (attemptType === 'best') {
-            // Sort by fastest elapsed time
             effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
         } else {
-            // Sort by most recent date (newest first)
             effortsData.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
         }
 
         const targetEffort = effortsData[0];
+        
+        // Extract and format the date of the effort!
+        const effortDateObj = new Date(targetEffort.start_date_local || targetEffort.start_date);
+        const formattedDate = effortDateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
         statusEl.innerText = `⏳ Loading full activity...`;
 
         const activityRes = await fetch(`https://www.strava.com/api/v3/activities/${targetEffort.activity.id}`, {
@@ -103,7 +104,7 @@ async function fetchUserData() {
 
         if (missingSegments.length === 0) {
             const successMsg = attemptType === 'best' ? "PR Loaded! Ready to pace." : "Recent Effort Loaded!";
-            saveAndLoadData(personalizedSegments, successMsg);
+            saveAndLoadData(personalizedSegments, successMsg, formattedDate);
         } else {
             console.warn("Missing:", missingSegments);
             statusEl.innerText = `⚠️ Missing ${missingSegments.length} hairpins.`;
@@ -158,7 +159,11 @@ function parseGPXFile() {
             let cumulativeKm = 0;
             let targetNextSplitKm = intervalKm;
             
-            let startPointTime = new Date(trkpts[0].getElementsByTagName("time")[0].textContent).getTime();
+            let startPointTimeStr = trkpts[0].getElementsByTagName("time")[0].textContent;
+            let startPointTime = new Date(startPointTimeStr).getTime();
+            
+            // Format the GPX start date
+            const gpxDate = new Date(startPointTimeStr).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
             for (let i = 1; i < trkpts.length; i++) {
                 let lat1 = parseFloat(trkpts[i-1].getAttribute("lat"));
@@ -198,7 +203,7 @@ function parseGPXFile() {
                 }
             }
 
-            saveAndLoadData(generatedSegments, "GPX Parsed Successfully!");
+            saveAndLoadData(generatedSegments, "GPX Parsed Successfully!", gpxDate);
 
         } catch (err) {
             console.error(err);
@@ -209,8 +214,10 @@ function parseGPXFile() {
     reader.readAsText(fileInput.files[0]);
 }
 
-function saveAndLoadData(segmentDataArray, successMsg) {
+// Added dateStr to signature
+function saveAndLoadData(segmentDataArray, successMsg, dateStr = "") {
     baseSegments = segmentDataArray; 
+    effortDateStr = dateStr;
     isDataLoaded = true; 
     
     document.getElementById('startBtn').disabled = false;
@@ -221,12 +228,23 @@ function saveAndLoadData(segmentDataArray, successMsg) {
     statusEl.innerText = `✓ ${successMsg}`;
     statusEl.className = "status-text ahead";
 
+    // Update the Date UI
+    const dateEl = document.getElementById('effort-date-display');
+    if (effortDateStr) {
+        dateEl.innerText = `Baseline Effort: ${effortDateStr}`;
+        dateEl.style.display = 'block';
+    } else {
+        dateEl.style.display = 'none';
+    }
+
     applyNewTarget(); 
 
+    // Include the date in the cache object
     const cacheObject = {
         climbName: currentClimb.name,
         targetTimeStr: document.getElementById('targetTimeInput').value,
-        baseSegments: baseSegments
+        baseSegments: baseSegments,
+        effortDateStr: effortDateStr
     };
     safeStorage.set('pacer_cache_data', JSON.stringify(cacheObject));
 }
