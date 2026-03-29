@@ -131,3 +131,52 @@ body.cockpit-mode .behind { color: var(--behind-red) !important; }
 #cockpit-active-segment { display: none; text-align: center; margin-top: 20px; width: 100%; }
 body.cockpit-mode #cockpit-active-segment { display: flex; flex-direction: column; align-items: center; gap: 15px; }
 body.cockpit-mode #segmentList { display: none; } /* Hide standard list */
+
+
+/* =========================================
+   COCKPIT MODE (Full Screen Overlay)
+========================================= */
+body.cockpit-mode { overflow: hidden; } /* Prevents scrolling */
+
+/* Hide all background clutter */
+body.cockpit-mode .header-row h2,
+body.cockpit-mode #strava-status,
+body.cockpit-mode .help-icon,
+body.cockpit-mode #settings-container,
+body.cockpit-mode #chart-wrapper-zone,
+body.cockpit-mode #strava-auth-zone,
+body.cockpit-mode #bmc-placeholder,
+body.cockpit-mode #segmentList {
+    display: none !important;
+}
+
+/* Transform the Control Card into a full screen dashboard */
+body.cockpit-mode .control-card {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    z-index: 9999; border-radius: 0; margin: 0; border: none;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    background-color: var(--bg-dark); color: #fff; box-sizing: border-box; padding: 20px;
+}
+
+/* Force colors to pop in dark mode */
+body.cockpit-mode .control-card * { color: #fff; }
+body.cockpit-mode .control-row { width: 100%; justify-content: center; flex-direction: column; align-items: center; }
+body.cockpit-mode #timer { font-size: 5.5em; margin: 5px 0; }
+body.cockpit-mode #main-delta { font-size: 2.5em; margin-bottom: 20px; }
+body.cockpit-mode #startBtn { font-size: 2em; padding: 20px; width: 100%; max-width: 350px; }
+body.cockpit-mode .ahead { color: var(--ahead-green) !important; }
+body.cockpit-mode .behind { color: var(--behind-red) !important; }
+
+/* Hide unnecessary controls in Cockpit */
+body.cockpit-mode .control-row:first-child, /* Target Time */
+body.cockpit-mode .slider-container, 
+body.cockpit-mode hr { 
+    display: none; 
+}
+
+/* Dynamic Cockpit Segment Button Zone */
+#cockpit-active-segment { display: none; }
+body.cockpit-mode #cockpit-active-segment { 
+    display: flex; flex-direction: column; align-items: center; 
+    width: 100%; max-width: 400px; margin-top: 20px; 
+}
