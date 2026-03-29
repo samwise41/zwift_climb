@@ -1,7 +1,7 @@
 // ==========================================
 // js/state.js - Core State & Authentication
 // ==========================================
-const DEV_MODE = false; 
+const DEV_MODE = true; 
 
 const safeStorage = {
     set: function(key, val) { try { window.localStorage.setItem(key, val); } catch(e) {} },
