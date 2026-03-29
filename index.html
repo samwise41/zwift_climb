@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Universal Climb Pacer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <link rel="stylesheet" href="css/pacer.css?v=3">
+    <link rel="stylesheet" href="css/pacer.css?v=13">
 </head>
 <body>
 
@@ -14,21 +13,24 @@
     <div id="helpModal" class="help-modal">
         <h3>How to use the Pacer</h3>
         <ul>
-            <li><b>Connect Strava:</b> We will pull your Personal Records directly from your activities to calculate realistic targets.</li>
-            <li><b>Set Target & Split:</b> Enter your desired total finish time. Use the slider to start faster (positive split) or end faster (negative split).</li>
+            <li><b>Connect Strava:</b> We will pull your PRs directly from your activities.</li>
+            <li><b>Set Target & Split:</b> Enter your desired total finish time. Use the slider to start faster or end faster.</li>
             <li><b>Ride:</b> Press START when you cross the segment banner.</li>
-            <li><b>Track Splits:</b> Press "Split" every time you complete a sub-segment (like a hairpin bend).</li>
-            <li><b>Record Power:</b> (Optional) Type your average wattage into the box for that split to map your performance on the Comparison Chart!</li>
+            <li><b>Cockpit Mode:</b> Tap the rocket icon to launch a floating window over your game!</li>
         </ul>
         <button class="close-help" onclick="closeHelp()">Got it!</button>
     </div>
 
     <div class="sticky-zone" style="position: relative;">
         
-
-        <div class="header-row">
+        <div id="bmc-placeholder" style="position: absolute; top: 10px; right: 10px; z-index: 105; transform: scale(0.6); transform-origin: top right;">
+            <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="samwise41" data-color="#ffffff" data-emoji="🍕"  data-font="Arial" data-text="Buy me a pizza" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#FFDD00" ></script>
+        </div>
+        
+        <div class="header-row" style="margin-bottom: 5px;">
             <h2><span id="title-text">Climb Pacer</span> <div class="help-icon" onclick="openHelp()">?</div></h2>
             <div id="strava-status" class="status-text"></div>
+            <button id="cockpitToggleBtn" onclick="toggleCockpitMode()" style="background: none; border: 1px solid var(--zwift-orange); color: var(--zwift-orange); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: bold; margin-left: 10px;">🚀 Cockpit</button>
         </div>
         
         <div id="strava-auth-zone">
@@ -72,9 +74,9 @@
                     
                     <div class="slider-container" style="margin-top: 15px;">
                         <div class="slider-labels">
-                            <span>Pos Split (Start Fast)</span>
+                            <span>Pos Split</span>
                             <span>Even</span>
-                            <span>Neg Split (End Fast)</span>
+                            <span>Neg Split</span>
                         </div>
                         <input type="range" id="splitSlider" min="-10" max="10" value="0" oninput="applyNewTarget()">
                     </div>
@@ -101,9 +103,9 @@
 
     <div id="segmentList"></div>
 
-    <script src="js/pacer.js?v=12"></script>
-    <script src="js/auth.js?v=12"></script>
-    <script src="js/api.js?v=12"></script>
+    <script src="js/pacer.js?v=13"></script>
+    <script src="js/auth.js?v=13"></script>
+    <script src="js/api.js?v=13"></script>
     
 </body>
 </html>
