@@ -1,7 +1,7 @@
 // ==========================================
 // js/state.js - Core State & Authentication
 // ==========================================
-const DEV_MODE = false; 
+const DEV_MODE = true; 
 
 const safeStorage = {
     set: function(key, val) { try { window.localStorage.setItem(key, val); } catch(e) {} },
@@ -15,6 +15,7 @@ let climbsConfig = [];
 let currentClimb = null;
 let isDataLoaded = false;
 let isCockpitMode = false;
+let effortDateStr = ""; // NEW: Tracks the date of the effort
 
 let baseSegments = [];
 let activeSegments = [];
@@ -112,6 +113,16 @@ async function loadSegmentsConfig() {
                 baseSegments = cachedData.baseSegments;
                 isDataLoaded = true;
                 
+                // Set the Date Display from Cache
+                effortDateStr = cachedData.effortDateStr || "";
+                const dateEl = document.getElementById('effort-date-display');
+                if (effortDateStr) {
+                    dateEl.innerText = `Baseline Effort: ${effortDateStr}`;
+                    dateEl.style.display = 'block';
+                } else {
+                    dateEl.style.display = 'none';
+                }
+                
                 document.getElementById('startBtn').disabled = false;
                 document.getElementById('data-settings-box').style.display = 'none'; 
                 document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
@@ -136,7 +147,9 @@ async function loadSegmentsConfig() {
 function loadClimbSkeleton(climb) {
     currentClimb = climb;
     isDataLoaded = false;
+    effortDateStr = ""; // Clear the date memory
     document.getElementById('title-text').innerText = `${climb.name} Pacer`;
+    document.getElementById('effort-date-display').style.display = 'none'; // Hide the date UI
     document.getElementById('targetTimeInput').value = climb.defaultTime;
     document.getElementById('startBtn').disabled = true;
     document.getElementById('strava-status').style.display = 'none';
