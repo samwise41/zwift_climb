@@ -35,7 +35,8 @@ async function fetchUserData() {
     }
 
     const attemptType = document.getElementById('attemptSelect').value;
-    const fetchLimit = attemptType === 'best' ? 50 : 1;
+    // Always fetch 50 so we can accurately sort for either "best" or "most recent"
+    const fetchLimit = 50; 
 
     try {
         const effortsRes = await fetch(`https://www.strava.com/api/v3/segment_efforts?segment_id=${currentClimb.id}&per_page=${fetchLimit}`, {
@@ -64,7 +65,14 @@ async function fetchUserData() {
             return;
         }
 
-        if (attemptType === 'best') effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
+        // --- SORTING LOGIC FIX ---
+        if (attemptType === 'best') {
+            // Sort by fastest elapsed time
+            effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
+        } else {
+            // Sort by most recent date (newest first)
+            effortsData.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+        }
 
         const targetEffort = effortsData[0];
         statusEl.innerText = `⏳ Loading full activity...`;
@@ -94,7 +102,8 @@ async function fetchUserData() {
         }
 
         if (missingSegments.length === 0) {
-            saveAndLoadData(personalizedSegments, "PR Loaded!");
+            const successMsg = attemptType === 'best' ? "PR Loaded! Ready to pace." : "Recent Effort Loaded!";
+            saveAndLoadData(personalizedSegments, successMsg);
         } else {
             console.warn("Missing:", missingSegments);
             statusEl.innerText = `⚠️ Missing ${missingSegments.length} hairpins.`;
