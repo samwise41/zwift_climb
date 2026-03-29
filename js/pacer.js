@@ -1,14 +1,4 @@
 // ==========================================
-// 1. SERVICE WORKER ASSASSIN 
-// Kills any rogue offline caches causing errors
-// ==========================================
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for(let registration of registrations) { registration.unregister(); }
-    });
-}
-
-// ==========================================
 // DEV MODE TOGGLE (Set to false for Production)
 // ==========================================
 const DEV_MODE = false; 
@@ -43,7 +33,6 @@ let stravaAccessToken = null;
 let climbsConfig = [];
 let currentClimb = null;
 let isDataLoaded = false;
-let effortDateStr = ""; // Tracks the date of the effort
 
 let baseSegments = [];
 let activeSegments = [];
@@ -72,17 +61,19 @@ function toggleSettings() {
     }
 }
 
-// --- Auth Gatekeeper ---
+// --- Auth Gatekeeper (Triggered by Button Click) ---
 function startStravaAuth() {
     if (DEV_MODE) {
-        initAuth(); 
+        initAuth(); // Boot up fake UI instantly
     } else {
+        // Safe redirect to real API endpoint
         window.top.location.href = "/api/auth";
     }
 }
 
 // --- Auth & Persistence Logic ---
 function initAuth() {
+    // DEV MODE BYPASS
     if (DEV_MODE) {
         stravaAccessToken = "DEV_MODE_ACTIVE";
         document.getElementById('strava-btn').style.display = 'none';
@@ -149,43 +140,6 @@ async function loadSegmentsConfig() {
 
         selectEl.addEventListener('change', (e) => loadClimbSkeleton(climbsConfig[e.target.value]));
         
-        // CACHE CHECK: If we have a saved route, load it instantly!
-        const cachedDataStr = safeStorage.get('pacer_cache_data');
-        if (cachedDataStr) {
-            const cachedData = JSON.parse(cachedDataStr);
-            const climbIndex = climbsConfig.findIndex(c => c.name === cachedData.climbName);
-            if (climbIndex !== -1) {
-                selectEl.value = climbIndex;
-                currentClimb = climbsConfig[climbIndex];
-
-                document.getElementById('title-text').innerText = `${currentClimb.name} Pacer`;
-                document.getElementById('targetTimeInput').value = cachedData.targetTimeStr;
-                
-                baseSegments = cachedData.baseSegments;
-                isDataLoaded = true;
-                
-                // Set the Date Display from Cache
-                effortDateStr = cachedData.effortDateStr || "";
-                const dateEl = document.getElementById('effort-date-display');
-                if (effortDateStr) {
-                    dateEl.innerText = `Baseline Effort: ${effortDateStr}`;
-                    dateEl.style.display = 'block';
-                }
-                
-                document.getElementById('startBtn').disabled = false;
-                document.getElementById('data-settings-box').style.display = 'none'; 
-                document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
-                
-                const statusEl = document.getElementById('strava-status');
-                statusEl.innerText = `✓ Cached Data Loaded!`;
-                statusEl.style.display = 'inline-block';
-                statusEl.className = "status-text ahead";
-                
-                applyNewTarget();
-                return; // Exit early so we don't load the default skeleton
-            }
-        }
-        
         if(climbsConfig.length > 0) {
             loadClimbSkeleton(climbsConfig[0]);
         }
@@ -198,10 +152,7 @@ async function loadSegmentsConfig() {
 function loadClimbSkeleton(climb) {
     currentClimb = climb;
     isDataLoaded = false;
-    effortDateStr = ""; 
-    
     document.getElementById('title-text').innerText = `${climb.name} Pacer`;
-    document.getElementById('effort-date-display').style.display = 'none';
     document.getElementById('targetTimeInput').value = climb.defaultTime;
     
     document.getElementById('startBtn').disabled = true;
@@ -215,49 +166,6 @@ function loadClimbSkeleton(climb) {
     applyNewTarget(); 
 }
 
-function clearCacheAndReset() {
-    safeStorage.remove('pacer_cache_data');
-    alert("Saved data cleared. Ready to fetch new data.");
-    loadClimbSkeleton(currentClimb);
-    document.getElementById('data-settings-box').style.display = 'flex'; 
-}
-
-// --- Success Handler & Cache Saver ---
-function saveAndLoadData(segmentDataArray, successMsg, dateStr = "") {
-    baseSegments = segmentDataArray; 
-    effortDateStr = dateStr;
-    isDataLoaded = true; 
-    
-    document.getElementById('startBtn').disabled = false;
-    document.getElementById('data-settings-box').style.display = 'none'; 
-    document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
-    
-    const statusEl = document.getElementById('strava-status');
-    statusEl.innerText = `✓ ${successMsg}`;
-    statusEl.style.display = 'inline-block';
-    statusEl.className = "status-text ahead";
-
-    // Update the Date UI
-    const dateEl = document.getElementById('effort-date-display');
-    if (effortDateStr) {
-        dateEl.innerText = `Baseline Effort: ${effortDateStr}`;
-        dateEl.style.display = 'block';
-    } else {
-        dateEl.style.display = 'none';
-    }
-
-    applyNewTarget(); // Calculate targets first
-
-    // Save to Cache
-    const cacheObject = {
-        climbName: currentClimb.name,
-        targetTimeStr: document.getElementById('targetTimeInput').value,
-        baseSegments: baseSegments,
-        effortDateStr: effortDateStr
-    };
-    safeStorage.set('pacer_cache_data', JSON.stringify(cacheObject));
-}
-
 // --- Strava API Fetcher ---
 async function fetchUserData() {
     if (!stravaAccessToken || !currentClimb) return;
@@ -267,6 +175,7 @@ async function fetchUserData() {
     statusEl.style.display = 'inline-block';
     statusEl.classList.remove("ahead", "behind"); 
 
+    // DEV MODE FAKE DATA GENERATOR
     if (DEV_MODE) {
         setTimeout(() => {
             let dummySegments = [];
@@ -274,29 +183,40 @@ async function fetchUserData() {
             let avgSecsPerSegment = Math.round(defaultTotalSecs / currentClimb.subSegments.length);
 
             for (let i = 0; i < currentClimb.subSegments.length; i++) {
+                // Add +/- 15 seconds of randomness to make it look real
                 let mockSegSec = avgSecsPerSegment + (Math.floor(Math.random() * 30) - 15);
+                // Random watts between 210 and 270
                 let mockWatts = 210 + Math.floor(Math.random() * 60); 
-                dummySegments.push({ name: currentClimb.subSegments[i], prevSegSec: mockSegSec, prevWatts: mockWatts, targetCumSec: null, targetPower: null });
+                
+                dummySegments.push({
+                    name: currentClimb.subSegments[i],
+                    prevSegSec: mockSegSec,
+                    prevWatts: mockWatts,
+                    targetCumSec: null, targetPower: null
+                });
             }
-            saveAndLoadData(dummySegments, "DEV MODE Data Loaded", "Today (Dev Mode)");
+
+            baseSegments = dummySegments; 
+            isDataLoaded = true; 
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('data-settings-box').style.display = 'none'; 
+            document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
+            applyNewTarget(); 
+            
+            statusEl.innerText = `✓ DEV MODE Data Loaded!`;
+            statusEl.classList.add("ahead");
         }, 600); 
         return;
     }
 
+    // NORMAL STRAVA API FETCH
     const attemptType = document.getElementById('attemptSelect').value;
-    const fetchLimit = 50; // Always pull 50 to allow accurate date sorting
+    const fetchLimit = attemptType === 'best' ? 50 : 1;
 
     try {
         const effortsRes = await fetch(`https://www.strava.com/api/v3/segment_efforts?segment_id=${currentClimb.id}&per_page=${fetchLimit}`, {
             headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
         });
-        
-        if (effortsRes.status === 429) {
-            statusEl.innerHTML = `⚠️ Strava Limit Reached. Use Custom Route (GPX) mode.`;
-            statusEl.classList.add("behind");
-            return;
-        }
-        
         let effortsData = await effortsRes.json();
 
         if (effortsData.message === "Authorization Error" || effortsRes.status === 401) {
@@ -310,58 +230,32 @@ async function fetchUserData() {
         }
 
         if (!effortsData || effortsData.length === 0 || effortsData.errors) {
-            statusEl.innerText = `❌ No efforts found.`;
+            statusEl.innerText = `❌ No efforts found for ${currentClimb.name}.`;
             statusEl.classList.add("behind");
             return;
         }
 
-        // --- THE SORTING FIX ---
         if (attemptType === 'best') {
             effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
-        } else {
-            // Sort by actual date, newest first
-            effortsData.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
         }
 
         const targetEffort = effortsData[0];
-        
-        // --- THE DATE EXTRACTOR ---
-        const effortDateObj = new Date(targetEffort.start_date_local || targetEffort.start_date);
-        const formattedDate = effortDateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+        const activityId = targetEffort.activity.id;
 
         statusEl.innerText = `⏳ Loading activity...`;
 
-        // --- FIX 1: FORCE STRAVA TO UNHIDE SEGMENTS ---
-        const activityRes = await fetch(`https://www.strava.com/api/v3/activities/${targetEffort.activity.id}?include_all_efforts=true`, {
+        const activityRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
             headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
         });
-        
-        if (activityRes.status === 429) {
-            statusEl.innerHTML = `⚠️ Strava Limit Reached. Use GPX Fallback.`;
-            statusEl.classList.add("behind");
-            return;
-        }
-        
         const activityData = await activityRes.json();
-        
-        if (!activityData || !activityData.segment_efforts) {
-             statusEl.innerText = `❌ Strava missing segment data.`;
-             statusEl.classList.add("behind");
-             return;
-        }
+        const segmentEfforts = activityData.segment_efforts;
 
         let personalizedSegments = [];
         let missingSegments = [];
 
-        // --- FIX 2: THE FUZZY MATCHER & SOFT FALLBACK ---
         for (let targetName of currentClimb.subSegments) {
-            // Strip out "Bend", spaces, and dashes to just match numbers
-            const cleanTarget = targetName.toLowerCase().replace(/bend/g, '').replace(/[^a-z0-9]/g, '');
-            
-            const match = activityData.segment_efforts.find(seg => {
-                const cleanStravaName = seg.name.toLowerCase().replace(/bend/g, '').replace(/[^a-z0-9]/g, '');
-                return cleanStravaName.includes(cleanTarget);
-            });
+            const regex = new RegExp("\\b" + targetName + "(?:\\b|\\s|$)", "i");
+            const match = segmentEfforts.find(seg => regex.test(seg.name));
             
             if (match) {
                 personalizedSegments.push({
@@ -372,24 +266,26 @@ async function fetchUserData() {
                 });
             } else {
                 missingSegments.push(targetName);
-                // Insert a dummy average segment so the app doesn't crash if Strava is missing data
-                personalizedSegments.push({
-                    name: targetName,
-                    prevSegSec: 180,
-                    prevWatts: 150,
-                    targetCumSec: null, targetPower: null
-                });
             }
         }
 
-        if (missingSegments.length > 0) {
-            console.warn("Strava named these weirdly or hid them, using estimates for:", missingSegments);
+        if (missingSegments.length === 0) {
+            baseSegments = personalizedSegments; 
+            isDataLoaded = true; 
+            
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('data-settings-box').style.display = 'none'; 
+            document.getElementById('toggleSettingsBtn').innerHTML = '▶ Show Settings';
+
+            applyNewTarget(); 
+            
+            statusEl.innerText = `✓ PR Loaded! Ready to pace.`;
+            statusEl.classList.add("ahead");
+        } else {
+            console.warn("⚠️ Missing Sub-Segments:", missingSegments);
+            statusEl.innerText = `⚠️ Missing ${missingSegments.length} hairpins.`;
+            statusEl.classList.add("behind");
         }
-
-        // Now we load successfully even if Strava acts up!
-        const successMsg = attemptType === 'best' ? "PR Loaded!" : "Recent Effort Loaded!";
-        saveAndLoadData(personalizedSegments, successMsg, formattedDate);
-
     } catch (error) {
         console.error(error);
         statusEl.innerText = "❌ Connection Error";
@@ -467,17 +363,6 @@ function applyNewTarget() {
     document.getElementById('title-text').innerText = `${currentClimb.name} (${formatTime(targetSeconds)})`;
     hardResetState(false); 
     renderList();
-    
-    // Update cache if target time changed
-    if (isDataLoaded) {
-        const cacheStr = safeStorage.get('pacer_cache_data');
-        if (cacheStr) {
-            let cacheObj = JSON.parse(cacheStr);
-            cacheObj.targetTimeStr = document.getElementById('targetTimeInput').value;
-            cacheObj.baseSegments = activeSegments; // Save the updated targets
-            safeStorage.set('pacer_cache_data', JSON.stringify(cacheObj));
-        }
-    }
 }
 
 // --- UI & Ride Logic ---
