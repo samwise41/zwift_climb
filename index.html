@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Universal Climb Pacer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="css/pacer.css?v=15">
+    <link rel="stylesheet" href="css/pacer.css?v=4">
 </head>
 <body>
 
@@ -13,27 +13,24 @@
     <div id="helpModal" class="help-modal">
         <h3>How to use the Pacer</h3>
         <ul>
-            <li><b>Connect Strava:</b> We will pull your PRs directly from your activities.</li>
-            <li><b>Set Target & Split:</b> Enter your desired total finish time. Use the slider to start faster or end faster.</li>
+            <li><b>Connect Strava:</b> We will pull your Personal Records directly from your activities to calculate realistic targets.</li>
+            <li><b>Set Target & Split:</b> Enter your desired total finish time. Use the slider to start faster (positive split) or end faster (negative split).</li>
             <li><b>Ride:</b> Press START when you cross the segment banner.</li>
-            <li><b>Cockpit Mode:</b> Tap the rocket icon to launch a floating window over your game!</li>
+            <li><b>Track Splits:</b> Press "Split" every time you complete a sub-segment (like a hairpin bend).</li>
+            <li><b>Record Power:</b> (Optional) Type your average wattage into the box for that split to map your performance on the Comparison Chart!</li>
         </ul>
         <button class="close-help" onclick="closeHelp()">Got it!</button>
     </div>
 
-    <div class="sticky-zone" style="position: relative;">
+    <div class="top-dashboard">
         
         <div id="bmc-placeholder" style="position: absolute; top: 10px; right: 10px; z-index: 105; transform: scale(0.6); transform-origin: top right;">
-            <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="samwise41" data-color="#ffffff" data-emoji="🍕"  data-font="Arial" data-text="Buy me a pizza" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#FFDD00" ></script>
+            <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="samwise41" data-color="#ffffff" data-emoji="🍕"  data-font="Arial" data-text="$$ Buy me a pizza" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#FFDD00" ></script>
         </div>
-        
-        <div class="header-row" style="margin-bottom: 5px;">
+        <div class="header-row">
             <h2><span id="title-text">Climb Pacer</span> <div class="help-icon" onclick="openHelp()">?</div></h2>
             <div id="strava-status" class="status-text"></div>
-            <button id="cockpitToggleBtn" onclick="toggleCockpitMode()" style="background: none; border: 1px solid var(--zwift-orange); color: var(--zwift-orange); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: bold; margin-left: 10px;">🚀 Cockpit</button>
         </div>
-        
-        <div id="effort-date-display" style="text-align: center; font-size: 0.85em; color: #94a3b8; margin-bottom: 15px; display: none;"></div>
         
         <div id="strava-auth-zone">
             <button id="strava-btn" class="strava-btn" onclick="startStravaAuth()">Connect Strava to fetch PR</button>
@@ -53,10 +50,7 @@
                         <option value="recent">Most Recent</option>
                     </select>
                 </div>
-                <div class="calc-row" style="gap: 5px;">
-                    <button id="fetchBtn" class="calc-btn" style="background-color: var(--zwift-orange);" onclick="fetchUserData()">Fetch My Data</button>
-                    <button onclick="clearCacheAndReset()" style="background: none; border: 1px solid #f44336; color: #f44336; padding: 8px; border-radius: 6px; cursor: pointer;" title="Clear Saved Data">🗑️</button>
-                </div>
+                <button id="fetchBtn" class="calc-btn" style="background-color: var(--zwift-orange);" onclick="fetchUserData()">Fetch My Data</button>
             </div>
         </div>
 
@@ -79,9 +73,9 @@
                     
                     <div class="slider-container" style="margin-top: 15px;">
                         <div class="slider-labels">
-                            <span>Pos Split</span>
+                            <span>Pos Split (Start Fast)</span>
                             <span>Even</span>
-                            <span>Neg Split</span>
+                            <span>Neg Split (End Fast)</span>
                         </div>
                         <input type="range" id="splitSlider" min="-10" max="10" value="0" oninput="applyNewTarget()">
                     </div>
@@ -93,14 +87,20 @@
                 </div>
             </div>
 
-            <div class="chart-container">
-                <div class="chart-title">PACING TREND: Time Ahead (+)</div>
-                <div class="chart-wrapper"><canvas id="pacingTrendChart"></canvas></div>
+            <div style="grid-column: 1 / -1; text-align: right; padding-right: 5px;">
+                <button onclick="const el = document.getElementById('chart-wrapper-zone'); el.style.display = (el.style.display === 'none' ? 'contents' : 'none');" style="background: none; border: none; color: var(--target-blue); font-weight: bold; cursor: pointer; font-size: 0.9em;">📊 Toggle Charts</button>
             </div>
 
-            <div class="chart-container">
-                <div class="chart-title">COMPARISON: Time (Bars) & Watts (Lines)</div>
-                <div class="chart-wrapper"><canvas id="comparisonChart"></canvas></div>
+            <div id="chart-wrapper-zone" style="display: contents;">
+                <div class="chart-container">
+                    <div class="chart-title">PACING TREND: Time Ahead (+)</div>
+                    <div class="chart-wrapper"><canvas id="pacingTrendChart"></canvas></div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-title">COMPARISON: Time (Bars) & Watts (Lines)</div>
+                    <div class="chart-wrapper"><canvas id="comparisonChart"></canvas></div>
+                </div>
             </div>
 
         </div>
@@ -108,7 +108,7 @@
 
     <div id="segmentList"></div>
 
-    <script src="js/pacer.js?v=15"></script>
+    <script src="js/pacer.js?v=3"></script>
     
 </body>
 </html>
