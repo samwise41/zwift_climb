@@ -76,7 +76,7 @@ function showApp() {
     });
 }
 
-// --- Fetch & Slicer Engine ---
+// --- Fetch & Slicer Engine (Diagnostic Version) ---
 async function fetchAndSliceStravaData() {
     const segmentId = document.getElementById('routeSelect').value;
     currentRouteName = document.getElementById('routeSelect').options[document.getElementById('routeSelect').selectedIndex].text;
@@ -97,16 +97,13 @@ async function fetchAndSliceStravaData() {
         });
         
         let effortsData = await effortsRes.json();
-        if (effortsData.message === "Authorization Error" || effortsRes.status === 401) {
-            statusEl.innerText = `❌ Session expired.`;
-            statusEl.className = "status-text behind";
-            return;
+        
+        if (effortsData.message) {
+            throw new Error(`Strava API: ${effortsData.message}`);
         }
 
-        if (!effortsData || effortsData.length === 0 || effortsData.errors) {
-            statusEl.innerText = `❌ You haven't ridden this route!`;
-            statusEl.className = "status-text behind";
-            return;
+        if (!effortsData || effortsData.length === 0) {
+            throw new Error("You haven't ridden this route!");
         }
 
         if (attemptType === 'best') {
@@ -125,13 +122,20 @@ async function fetchAndSliceStravaData() {
         
         const streamData = await streamRes.json();
         
-        if (!streamData.distance || !streamData.time) {
-            throw new Error("Strava stream did not return distance or time data.");
+        // --- DIAGNOSTIC CHECK ---
+        if (streamData.message || streamData.errors) {
+            console.error("Strava Error payload:", streamData);
+            throw new Error(`Strava Blocked Stream: ${streamData.message || 'Unknown API Error'}`);
         }
 
-        const distances = streamData.distance.data; // Meters
-        const times = streamData.time.data; // Seconds
-        const watts = streamData.watts ? streamData.watts.data : []; // Watts (might be empty if no power meter)
+        if (!streamData.distance || !streamData.time) {
+            console.error("Stream Payload:", streamData);
+            throw new Error("No distance or time telemetry found for this effort.");
+        }
+
+        const distances = streamData.distance.data; 
+        const times = streamData.time.data; 
+        const watts = streamData.watts ? streamData.watts.data : []; 
 
         // 3. Slice the Arrays!
         statusEl.innerText = "⏳ Slicing data...";
@@ -145,8 +149,7 @@ async function fetchAndSliceStravaData() {
                 
                 let splitSecs = times[i] - times[lastIndex];
                 
-                // Calculate average watts for this chunk
-                let avgWatts = 150; // Fallback
+                let avgWatts = 150; 
                 if (watts.length > 0) {
                     let wattsSlice = watts.slice(lastIndex, i + 1);
                     let wattsSum = wattsSlice.reduce((a, b) => a + b, 0);
@@ -177,15 +180,14 @@ async function fetchAndSliceStravaData() {
         statusEl.innerText = `✓ Sliced into ${baseSegments.length} checkpoints!`;
         statusEl.className = "status-text ahead";
         document.getElementById('title-text').innerText = currentRouteName;
-
-        // Set the default target time input to whatever their PR was
         document.getElementById('targetTimeInput').value = formatTime(targetEffort.elapsed_time);
 
         applyNewTarget();
 
     } catch (error) {
         console.error("Stream Fetch Error:", error);
-        statusEl.innerText = "❌ Strava Stream Error";
+        // Display the EXACT error to the screen
+        statusEl.innerText = `❌ ${error.message}`;
         statusEl.className = "status-text behind";
     }
 }
