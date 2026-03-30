@@ -76,72 +76,85 @@ function showApp() {
     });
 }
 
-// --- Fetch & Slicer Engine (Bulletproof Activity Version) ---
+// --- Fetch & Slicer Engine (Hyper-Verbose) ---
 async function fetchAndSliceStravaData() {
     const segmentId = document.getElementById('routeSelect').value;
     currentRouteName = document.getElementById('routeSelect').options[document.getElementById('routeSelect').selectedIndex].text;
     const sliceIntervalKm = parseFloat(document.getElementById('sliceSelect').value);
     const attemptType = document.getElementById('attemptSelect').value;
+    
     const statusEl = document.getElementById('strava-status');
     const dateDisplayEl = document.getElementById('effort-date-display');
     
-    statusEl.innerText = "⏳ Finding your effort...";
     statusEl.className = "status-text";
     statusEl.style.display = 'inline-block';
     dateDisplayEl.style.display = 'none';
 
-    // Fetch up to 200 to ensure we don't miss anything
     const fetchLimit = attemptType === 'best' ? 200 : 1;
 
     try {
+        statusEl.innerText = "⏳ Step 1: Requesting data from Strava...";
+        console.log(`Fetching segment efforts for ID: ${segmentId}`);
+
         const effortsRes = await fetch(`https://www.strava.com/api/v3/segment_efforts?segment_id=${segmentId}&per_page=${fetchLimit}`, {
             headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
         });
         
+        statusEl.innerText = "⏳ Step 2: Reading Strava response...";
         let effortsData = await effortsRes.json();
+        console.log("Strava Segment Data:", effortsData);
         
-        if (effortsData.message) {
-            throw new Error(`Strava API: ${effortsData.message}`);
+        if (effortsData.message || effortsData.errors) {
+            throw new Error(`Strava Error: ${effortsData.message || 'Unknown'}`);
         }
 
-        if (!effortsData || effortsData.length === 0) {
-            throw new Error("You haven't ridden this route!");
+        if (!Array.isArray(effortsData)) {
+            throw new Error(`Data format error. Check Developer Console.`);
         }
 
-        // Bulletproof Sorting
+        if (effortsData.length === 0) {
+            throw new Error("Strava found 0 rides for you on this specific route.");
+        }
+
+        statusEl.innerText = "⏳ Step 3: Analyzing your rides...";
         if (attemptType === 'best') {
-            // Sort by elapsed_time ascending (lowest time = fastest = index 0)
             effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
         } else {
-            // Sort by start_date descending (most recent = index 0)
             effortsData.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
         }
 
         const targetEffort = effortsData[0];
+        
+        if (!targetEffort || !targetEffort.activity || !targetEffort.activity.id) {
+            throw new Error("Could not extract Activity ID from your ride.");
+        }
+
         const activityId = targetEffort.activity.id;
         const startIndex = targetEffort.start_index;
         const endIndex = targetEffort.end_index;
 
-        // Format Date to Display
         const effortDateObj = new Date(targetEffort.start_date_local || targetEffort.start_date);
         const formattedDate = effortDateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
-        statusEl.innerText = "⏳ Downloading telemetry streams...";
+        statusEl.innerText = "⏳ Step 4: Downloading your ride stream...";
+        console.log(`Fetching streams for Activity ID: ${activityId}`);
         
         const streamRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=distance,time,watts&key_by_type=true`, {
             headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
         });
         
         const streamData = await streamRes.json();
+        console.log("Strava Stream Data:", streamData);
         
         if (streamData.message || streamData.errors) {
-            throw new Error(`Strava Blocked Stream: ${streamData.message || 'Unknown API Error'}`);
+            throw new Error(`Strava Blocked Stream: ${streamData.message || 'Unknown'}`);
         }
 
         if (!streamData.distance || !streamData.time) {
-            throw new Error("No distance or time telemetry found for this activity.");
+            throw new Error("Your ride file is missing distance or time data.");
         }
 
+        statusEl.innerText = "⏳ Step 5: Slicing the data mathematically...";
         let rawDistances = streamData.distance.data.slice(startIndex, endIndex + 1);
         let rawTimes = streamData.time.data.slice(startIndex, endIndex + 1);
         let rawWatts = streamData.watts ? streamData.watts.data.slice(startIndex, endIndex + 1) : [];
@@ -153,7 +166,6 @@ async function fetchAndSliceStravaData() {
         const times = rawTimes.map(t => t - startTimeVal);
         const watts = rawWatts;
 
-        statusEl.innerText = "⏳ Slicing data...";
         let generatedSegments = [];
         let intervalMeters = sliceIntervalKm * 1000;
         let nextTargetMeters = intervalMeters;
@@ -195,7 +207,6 @@ async function fetchAndSliceStravaData() {
         statusEl.innerText = `✓ Sliced into ${baseSegments.length} checkpoints!`;
         statusEl.className = "status-text ahead";
         
-        // Show Route Name and Baseline Date
         document.getElementById('title-text').innerText = currentRouteName;
         dateDisplayEl.innerText = `Baseline Effort: ${formattedDate} (${formatTime(targetEffort.elapsed_time)})`;
         dateDisplayEl.style.display = 'block';
@@ -274,7 +285,6 @@ function renderList() {
     const list = document.getElementById('segmentList');
     list.innerHTML = '';
     
-    // Restore the running sum for previous split display
     let runningPrevCumSec = 0;
 
     activeSegments.forEach((seg, index) => {
