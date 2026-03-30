@@ -1,8 +1,18 @@
 // ==========================================
-// js/universal.js - The Universal GPX Slicer
+// js/universal.js - Strava Streams Slicer
 // ==========================================
 
-// --- Core State ---
+const DEV_MODE = false;
+
+// We use the actual Strava Segment IDs here!
+const universalRoutes = [
+    { id: 16669530, name: "Epic KOM" },
+    { id: 16425130, name: "Volcano Circuit CCW" },
+    { id: 21343975, name: "Titans Grove KOM" },
+    { id: 16425133, name: "Innsbruck KOM" }
+];
+
+let stravaAccessToken = null;
 let baseSegments = [];
 let activeSegments = [];
 let isDataLoaded = false;
@@ -13,162 +23,173 @@ let timerInterval = null;
 let currentActiveIndex = 0;
 let actualCumSecData = [];
 
-// --- Init Dropdown ---
-function initDropdown() {
-    const selectEl = document.getElementById('routeSelect');
-    selectEl.innerHTML = ''; 
-    
-    // gpxLibrary is now automatically loaded from js/gpx-list.js
-    if (typeof gpxLibrary !== 'undefined') {
-        gpxLibrary.forEach(route => {
-            const opt = document.createElement('option');
-            opt.value = route.filename;
-            opt.textContent = route.name;
-            selectEl.appendChild(opt);
-        });
+// --- Auth Gatekeeper ---
+function startStravaAuth() {
+    if (DEV_MODE) {
+        initAuth(); 
     } else {
-        console.warn("gpxLibrary not found. Make sure the GitHub Action has run!");
+        window.top.location.href = "/api/auth";
     }
-    
-    const customOpt = document.createElement('option');
-    customOpt.value = "custom";
-    customOpt.textContent = "Upload My Own GPX...";
-    selectEl.appendChild(customOpt);
 }
 
-document.getElementById('routeSelect').addEventListener('change', (e) => {
-    if (e.target.value === 'custom') {
-        document.getElementById('custom-upload-row').style.display = 'flex';
-    } else {
-        document.getElementById('custom-upload-row').style.display = 'none';
+function initAuth() {
+    if (DEV_MODE) {
+        stravaAccessToken = "DEV_MODE_ACTIVE";
+        showApp();
+        return;
     }
-});
 
-// --- Core Engine: Load & Slice ---
-async function loadAndSliceRoute() {
-    const routeFile = document.getElementById('routeSelect').value;
-    const sliceMethod = document.getElementById('sliceSelect').value;
+    let urlToken = null;
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlToken = urlParams.get('access_token') || urlParams.get('code') || urlParams.get('token'); 
+    } catch(e) {}
+
+    if (urlToken) {
+        stravaAccessToken = urlToken;
+        try { window.localStorage.setItem('strava_token', urlToken); } catch(e) {}
+        try { window.history.replaceState({}, document.title, window.location.pathname); } catch(e) {}
+    } else {
+        try { stravaAccessToken = window.localStorage.getItem('strava_token'); } catch(e) {}
+    }
+
+    if (stravaAccessToken) {
+        showApp();
+    } else {
+        document.getElementById('strava-btn').style.display = 'inline-block';
+        document.getElementById('settings-container').style.display = 'none';
+    }
+}
+
+function showApp() {
+    document.getElementById('strava-btn').style.display = 'none';
+    document.getElementById('settings-container').style.display = 'block';
+    
+    const selectEl = document.getElementById('routeSelect');
+    selectEl.innerHTML = ''; 
+    universalRoutes.forEach(route => {
+        const opt = document.createElement('option');
+        opt.value = route.id;
+        opt.textContent = route.name;
+        selectEl.appendChild(opt);
+    });
+}
+
+// --- Fetch & Slicer Engine ---
+async function fetchAndSliceStravaData() {
+    const segmentId = document.getElementById('routeSelect').value;
+    currentRouteName = document.getElementById('routeSelect').options[document.getElementById('routeSelect').selectedIndex].text;
+    const sliceIntervalKm = parseFloat(document.getElementById('sliceSelect').value);
+    const attemptType = document.getElementById('attemptSelect').value;
     const statusEl = document.getElementById('strava-status');
     
-    statusEl.innerText = "⏳ Slicing Route...";
+    statusEl.innerText = "⏳ Finding your effort...";
     statusEl.className = "status-text";
     statusEl.style.display = 'inline-block';
 
+    const fetchLimit = attemptType === 'best' ? 50 : 1;
+
     try {
-        let gpxText = "";
+        // 1. Fetch their segment efforts
+        const effortsRes = await fetch(`https://www.strava.com/api/v3/segment_efforts?segment_id=${segmentId}&per_page=${fetchLimit}`, {
+            headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
+        });
         
-        if (routeFile === 'custom') {
-            const fileInput = document.getElementById('gpxInput');
-            if (!fileInput.files.length) {
-                alert("Please select a GPX file to upload.");
-                statusEl.style.display = 'none';
-                return;
-            }
-            gpxText = await fileInput.files[0].text();
-            currentRouteName = fileInput.files[0].name.replace('.gpx', '');
-        } else {
-            const res = await fetch(`./gpx/${routeFile}`);
-            if (!res.ok) throw new Error("GPX file not found on server.");
-            gpxText = await res.text();
-            currentRouteName = document.getElementById('routeSelect').options[document.getElementById('routeSelect').selectedIndex].text;
+        let effortsData = await effortsRes.json();
+        if (effortsData.message === "Authorization Error" || effortsRes.status === 401) {
+            statusEl.innerText = `❌ Session expired.`;
+            statusEl.className = "status-text behind";
+            return;
         }
 
-        if (sliceMethod === 'yolo') {
-            alert("YOLO Mode coming soon! Using 1km for now.");
-            executeStandardSlicer(gpxText, 1.0);
-        } else {
-            executeStandardSlicer(gpxText, parseFloat(sliceMethod));
+        if (!effortsData || effortsData.length === 0 || effortsData.errors) {
+            statusEl.innerText = `❌ You haven't ridden this route!`;
+            statusEl.className = "status-text behind";
+            return;
         }
+
+        if (attemptType === 'best') {
+            effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
+        }
+
+        const targetEffort = effortsData[0];
+        const effortId = targetEffort.id;
+
+        // 2. Fetch the Streams API for this specific effort
+        statusEl.innerText = "⏳ Downloading telemetry streams...";
+        
+        const streamRes = await fetch(`https://www.strava.com/api/v3/segment_efforts/${effortId}/streams?keys=distance,time,watts&key_by_type=true`, {
+            headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
+        });
+        
+        const streamData = await streamRes.json();
+        
+        if (!streamData.distance || !streamData.time) {
+            throw new Error("Strava stream did not return distance or time data.");
+        }
+
+        const distances = streamData.distance.data; // Meters
+        const times = streamData.time.data; // Seconds
+        const watts = streamData.watts ? streamData.watts.data : []; // Watts (might be empty if no power meter)
+
+        // 3. Slice the Arrays!
+        statusEl.innerText = "⏳ Slicing data...";
+        let generatedSegments = [];
+        let intervalMeters = sliceIntervalKm * 1000;
+        let nextTargetMeters = intervalMeters;
+        let lastIndex = 0;
+
+        for (let i = 0; i < distances.length; i++) {
+            if (distances[i] >= nextTargetMeters || i === distances.length - 1) {
+                
+                let splitSecs = times[i] - times[lastIndex];
+                
+                // Calculate average watts for this chunk
+                let avgWatts = 150; // Fallback
+                if (watts.length > 0) {
+                    let wattsSlice = watts.slice(lastIndex, i + 1);
+                    let wattsSum = wattsSlice.reduce((a, b) => a + b, 0);
+                    avgWatts = Math.round(wattsSum / wattsSlice.length);
+                }
+
+                let isFinish = i === distances.length - 1;
+                let segName = isFinish ? "Finish Line" : `Km ${(nextTargetMeters / 1000).toFixed(1)}`;
+
+                if (splitSecs > 0) {
+                    generatedSegments.push({
+                        name: segName,
+                        prevSegSec: splitSecs,
+                        prevWatts: avgWatts,
+                        targetCumSec: null, targetPower: null
+                    });
+                }
+
+                lastIndex = i;
+                nextTargetMeters += intervalMeters;
+            }
+        }
+
+        baseSegments = generatedSegments;
+        isDataLoaded = true;
+        
+        document.getElementById('startBtn').disabled = false;
+        statusEl.innerText = `✓ Sliced into ${baseSegments.length} checkpoints!`;
+        statusEl.className = "status-text ahead";
+        document.getElementById('title-text').innerText = currentRouteName;
+
+        // Set the default target time input to whatever their PR was
+        document.getElementById('targetTimeInput').value = formatTime(targetEffort.elapsed_time);
+
+        applyNewTarget();
 
     } catch (error) {
-        console.error("Slicing Error:", error);
-        statusEl.innerText = "❌ Error reading GPX";
+        console.error("Stream Fetch Error:", error);
+        statusEl.innerText = "❌ Strava Stream Error";
         statusEl.className = "status-text behind";
     }
 }
 
-// --- The Standard Distance Slicer ---
-function executeStandardSlicer(gpxText, intervalKm) {
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(gpxText, "text/xml");
-    const trkpts = xmlDoc.getElementsByTagName("trkpt");
-    
-    if (trkpts.length === 0) throw new Error("No trackpoints found in GPX.");
-
-    let generatedSegments = [];
-    let currentSegmentWattsSum = 0;
-    let currentSegmentWattsCount = 0;
-    
-    let cumulativeKm = 0;
-    let targetNextSplitKm = intervalKm;
-    
-    let startPointTime = new Date(trkpts[0].getElementsByTagName("time")[0].textContent).getTime();
-
-    for (let i = 1; i < trkpts.length; i++) {
-        let lat1 = parseFloat(trkpts[i-1].getAttribute("lat"));
-        let lon1 = parseFloat(trkpts[i-1].getAttribute("lon"));
-        let lat2 = parseFloat(trkpts[i].getAttribute("lat"));
-        let lon2 = parseFloat(trkpts[i].getAttribute("lon"));
-        
-        cumulativeKm += getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2);
-        
-        let ext = trkpts[i].getElementsByTagName("extensions")[0];
-        if (ext) {
-            let pwrNode = ext.getElementsByTagName("power")[0];
-            if (pwrNode) {
-                currentSegmentWattsSum += parseInt(pwrNode.textContent);
-                currentSegmentWattsCount++;
-            }
-        }
-
-        if (cumulativeKm >= targetNextSplitKm || i === trkpts.length - 1) {
-            let endPointTime = new Date(trkpts[i].getElementsByTagName("time")[0].textContent).getTime();
-            let segSecs = Math.round((endPointTime - startPointTime) / 1000);
-            
-            let avgWatts = currentSegmentWattsCount > 0 ? Math.round(currentSegmentWattsSum / currentSegmentWattsCount) : 150;
-            let isFinish = i === trkpts.length - 1;
-            let segName = isFinish ? "Finish Line" : `Km ${targetNextSplitKm.toFixed(1)}`;
-            
-            if (segSecs > 0) {
-                generatedSegments.push({
-                    name: segName,
-                    prevSegSec: segSecs,
-                    prevWatts: avgWatts,
-                    targetCumSec: null, targetPower: null
-                });
-            }
-
-            startPointTime = endPointTime;
-            currentSegmentWattsSum = 0;
-            currentSegmentWattsCount = 0;
-            targetNextSplitKm += intervalKm;
-        }
-    }
-
-    baseSegments = generatedSegments;
-    isDataLoaded = true;
-    
-    document.getElementById('startBtn').disabled = false;
-
-    const statusEl = document.getElementById('strava-status');
-    statusEl.innerText = `✓ Sliced into ${baseSegments.length} checkpoints!`;
-    statusEl.className = "status-text ahead";
-    
-    document.getElementById('title-text').innerText = currentRouteName;
-
-    applyNewTarget();
-}
-
 // --- Math & Utilities ---
-function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-    const R = 6371; 
-    const dLat = (lat2-lat1) * (Math.PI/180);
-    const dLon = (lon2-lon1) * (Math.PI/180); 
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * (Math.PI/180)) * Math.cos(lat2 * (Math.PI/180)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-    return R * c; 
-}
-
 function parseTimeToSeconds(timeStr) {
     if(!timeStr) return 0;
     const parts = timeStr.split(':');
@@ -311,4 +332,4 @@ function resetRideProgress() {
 }
 
 // Boot up!
-initDropdown();
+initAuth();
