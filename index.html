@@ -5,25 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Universal Climb Pacer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="css/pacer.css?v=16">
+    <link rel="stylesheet" href="css/pacer.css?v=18">
 </head>
 <body>
 
     <div id="modalBackdrop" class="modal-backdrop" onclick="closeHelp()"></div>
     <div id="helpModal" class="help-modal">
-        <h3>How to use the Pacer</h3>
-        <ul>
-            <li><b>Connect Strava:</b> We will pull your PRs directly from your activities.</li>
-            <li><b>Set Target & Split:</b> Enter your desired total finish time. Use the slider to start faster or end faster.</li>
-            <li><b>Ride:</b> Press START when you cross the segment banner.</li>
-            <li><b>Cockpit Mode:</b> Tap the rocket icon to launch a floating window over your game!</li>
-        </ul>
-        <button class="close-help" onclick="closeHelp()">Got it!</button>
+        <h3>How to pace your Zwift Climb</h3>
+        <ol style="text-align: left; margin-bottom: 20px; padding-left: 20px; line-height: 1.5;">
+            <li style="margin-bottom: 10px;"><b>Connect Strava:</b> Link your account so we can find your past Zwift climbs (like Alpe du Zwift). We use your historical hairpin data to build a perfectly tailored pacing plan.</li>
+            <li style="margin-bottom: 10px;"><b>Pick Your Goal:</b> Choose your climb and select whether you want to beat your All-Time PR or a Recent Effort. Enter your ultimate goal finish time.</li>
+            <li style="margin-bottom: 10px;"><b>Plan Your Effort:</b> Use the slider to adjust your strategy. A "Negative Split" means you will start slightly slower and push harder at the top.</li>
+            <li style="margin-bottom: 10px;"><b>Start Riding:</b> Launch Zwift. Right as your avatar crosses the segment's start line, tap <b>START</b>.</li>
+            <li style="margin-bottom: 10px;"><b>Hit Your Splits:</b> Every time you cross a hairpin or sub-segment banner in-game, tap <b>Split</b>. The app will tell you exactly how many seconds ahead or behind your goal pace you are!</li>
+            <li style="margin-bottom: 10px;"><b>🚀 Cockpit Mode:</b> Tap the rocket icon! On a PC/Mac, it pops out a mini floating window you can hover directly over the Zwift game. On your phone, it creates a massive, distraction-free dashboard.</li>
+        </ol>
+        <button class="close-help" onclick="closeHelp()" style="width: 100%; padding: 12px; font-size: 1.1em; font-weight: bold;">Got it! Ride On.</button>
     </div>
 
     <div class="top-dashboard" style="position: relative;">
         
-        <div id="bmc-placeholder" style="position: absolute; top: 10px; right: 10px; z-index: 105; transform: scale(0.6); transform-origin: top right;">
+        <div id="bmc-placeholder" style="display: none; position: absolute; top: 10px; right: 10px; z-index: 105; transform: scale(0.6); transform-origin: top right;">
             <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="samwise41" data-color="#ffffff" data-emoji="🍕"  data-font="Arial" data-text="Buy me a pizza" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#FFDD00" ></script>
         </div>
         
@@ -119,7 +121,7 @@
 
     <div id="segmentList"></div>
 
-    <script src="js/pacer.js?v=16"></script>
+    <script src="js/pacer.js?v=18"></script>
     
 </body>
 </html>
