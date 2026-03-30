@@ -4,12 +4,11 @@
 
 const DEV_MODE = false;
 
-// We use the actual Strava Segment IDs here!
+// Universal Route Database (Add Strava IDs here!)
 const universalRoutes = [
     { id: 16669530, name: "Epic KOM" },
     { id: 16425130, name: "Volcano Circuit CCW" },
     { id: 21343975, name: "Titans Grove KOM" },
-    { id: 37033150, name: "The Grade" },
     { id: 16425133, name: "Innsbruck KOM" }
 ];
 
@@ -83,15 +82,17 @@ async function fetchAndSliceStravaData() {
     const sliceIntervalKm = parseFloat(document.getElementById('sliceSelect').value);
     const attemptType = document.getElementById('attemptSelect').value;
     const statusEl = document.getElementById('strava-status');
+    const dateDisplayEl = document.getElementById('effort-date-display');
     
     statusEl.innerText = "⏳ Finding your effort...";
     statusEl.className = "status-text";
     statusEl.style.display = 'inline-block';
+    dateDisplayEl.style.display = 'none';
 
-    const fetchLimit = attemptType === 'best' ? 50 : 1;
+    // Fetch up to 200 to ensure we don't miss anything
+    const fetchLimit = attemptType === 'best' ? 200 : 1;
 
     try {
-        // 1. Fetch their segment efforts
         const effortsRes = await fetch(`https://www.strava.com/api/v3/segment_efforts?segment_id=${segmentId}&per_page=${fetchLimit}`, {
             headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
         });
@@ -106,18 +107,24 @@ async function fetchAndSliceStravaData() {
             throw new Error("You haven't ridden this route!");
         }
 
+        // Bulletproof Sorting
         if (attemptType === 'best') {
+            // Sort by elapsed_time ascending (lowest time = fastest = index 0)
             effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
+        } else {
+            // Sort by start_date descending (most recent = index 0)
+            effortsData.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
         }
 
         const targetEffort = effortsData[0];
-        
-        // NEW: Grab the parent Activity ID and the exact indices of the segment
         const activityId = targetEffort.activity.id;
         const startIndex = targetEffort.start_index;
         const endIndex = targetEffort.end_index;
 
-        // 2. Fetch the Streams API for the ENTIRE ACTIVITY
+        // Format Date to Display
+        const effortDateObj = new Date(targetEffort.start_date_local || targetEffort.start_date);
+        const formattedDate = effortDateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
         statusEl.innerText = "⏳ Downloading telemetry streams...";
         
         const streamRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=distance,time,watts&key_by_type=true`, {
@@ -127,21 +134,17 @@ async function fetchAndSliceStravaData() {
         const streamData = await streamRes.json();
         
         if (streamData.message || streamData.errors) {
-            console.error("Strava Error payload:", streamData);
             throw new Error(`Strava Blocked Stream: ${streamData.message || 'Unknown API Error'}`);
         }
 
         if (!streamData.distance || !streamData.time) {
-            console.error("Stream Payload:", streamData);
             throw new Error("No distance or time telemetry found for this activity.");
         }
 
-        // 3. Extract just the exact portion of the ride for this segment
         let rawDistances = streamData.distance.data.slice(startIndex, endIndex + 1);
         let rawTimes = streamData.time.data.slice(startIndex, endIndex + 1);
         let rawWatts = streamData.watts ? streamData.watts.data.slice(startIndex, endIndex + 1) : [];
 
-        // Normalize so the segment starts exactly at 0 meters and 0 seconds
         let startDist = rawDistances[0];
         let startTimeVal = rawTimes[0];
         
@@ -149,7 +152,6 @@ async function fetchAndSliceStravaData() {
         const times = rawTimes.map(t => t - startTimeVal);
         const watts = rawWatts;
 
-        // 4. Slice the Arrays!
         statusEl.innerText = "⏳ Slicing data...";
         let generatedSegments = [];
         let intervalMeters = sliceIntervalKm * 1000;
@@ -191,7 +193,12 @@ async function fetchAndSliceStravaData() {
         document.getElementById('startBtn').disabled = false;
         statusEl.innerText = `✓ Sliced into ${baseSegments.length} checkpoints!`;
         statusEl.className = "status-text ahead";
+        
+        // Show Route Name and Baseline Date
         document.getElementById('title-text').innerText = currentRouteName;
+        dateDisplayEl.innerText = `Baseline Effort: ${formattedDate} (${formatTime(targetEffort.elapsed_time)})`;
+        dateDisplayEl.style.display = 'block';
+
         document.getElementById('targetTimeInput').value = formatTime(targetEffort.elapsed_time);
 
         applyNewTarget();
@@ -265,19 +272,27 @@ function hardResetState(fullReset) {
 function renderList() {
     const list = document.getElementById('segmentList');
     list.innerHTML = '';
+    
+    // Restore the running sum for previous split display
+    let runningPrevCumSec = 0;
 
     activeSegments.forEach((seg, index) => {
         const prevTargetCumSec = index > 0 ? activeSegments[index-1].targetCumSec : 0;
         const targetSegSec = seg.targetCumSec - prevTargetCumSec;
 
+        runningPrevCumSec += seg.prevSegSec;
+
+        const prevTimeStr = formatTime(runningPrevCumSec);
+        const prevSegTimeStr = formatTime(seg.prevSegSec);
+        const prevPowerStr = seg.prevWatts + 'W';
+
         const div = document.createElement('div');
         div.className = 'segment';
         div.innerHTML = `
-            <div class="segment-info" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <div>
-                    <div class="segment-name">${seg.name}</div>
-                    <div class="segment-target" style="color: var(--target-blue); font-weight: bold;">Target: ${formatTime(seg.targetCumSec)} (${formatTime(targetSegSec)}) @ ${seg.targetPower}W</div>
-                </div>
+            <div class="segment-info" style="width: 100%;">
+                <div class="segment-name">${seg.name}</div>
+                <div class="segment-target" style="color: var(--target-blue); font-weight: bold;">Target: ${formatTime(seg.targetCumSec)} (${formatTime(targetSegSec)}) @ ${seg.targetPower}W</div>
+                <div class="prev-data-row">Prev: ${prevTimeStr} (${prevSegTimeStr}) @ ${prevPowerStr}</div>
             </div>
             <div class="segment-action" id="action-${index}"></div>
         `;
