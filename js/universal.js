@@ -110,7 +110,7 @@ async function fetchAndSliceStravaData() {
     }
     if (dateDisplayEl) dateDisplayEl.style.display = 'none';
 
-    const fetchLimit = attemptType === 'best' ? 200 : 1;
+    const fetchLimit = 200;
 
     try {
         console.log(`\n--- FETCHING DATA FOR SEGMENT: ${segmentId} ---`);
