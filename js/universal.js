@@ -2,6 +2,15 @@
 // js/universal.js - The Universal GPX Slicer
 // ==========================================
 
+// --- 1. YOUR GPX LIBRARY ---
+// Just add new files here when you drop them into your /gpx/ folder!
+const gpxLibrary = [
+    { filename: "epic_kom.gpx", name: "Epic KOM" },
+    { filename: "road_to_sky.gpx", name: "Road to Sky" },
+    { filename: "volcano_ccw.gpx", name: "Volcano Circuit CCW" }
+];
+
+// --- Core State ---
 let baseSegments = [];
 let activeSegments = [];
 let isDataLoaded = false;
@@ -12,7 +21,25 @@ let timerInterval = null;
 let currentActiveIndex = 0;
 let actualCumSecData = [];
 
-// --- UI Listeners ---
+// --- Init Dropdown ---
+function initDropdown() {
+    const selectEl = document.getElementById('routeSelect');
+    selectEl.innerHTML = ''; 
+    
+    gpxLibrary.forEach(route => {
+        const opt = document.createElement('option');
+        opt.value = route.filename;
+        opt.textContent = route.name;
+        selectEl.appendChild(opt);
+    });
+    
+    // Always add the custom upload at the bottom
+    const customOpt = document.createElement('option');
+    customOpt.value = "custom";
+    customOpt.textContent = "Upload My Own GPX...";
+    selectEl.appendChild(customOpt);
+}
+
 document.getElementById('routeSelect').addEventListener('change', (e) => {
     if (e.target.value === 'custom') {
         document.getElementById('custom-upload-row').style.display = 'flex';
@@ -35,7 +62,6 @@ async function loadAndSliceRoute() {
         let gpxText = "";
         
         if (routeFile === 'custom') {
-            // Read from local file upload
             const fileInput = document.getElementById('gpxInput');
             if (!fileInput.files.length) {
                 alert("Please select a GPX file to upload.");
@@ -45,14 +71,12 @@ async function loadAndSliceRoute() {
             gpxText = await fileInput.files[0].text();
             currentRouteName = fileInput.files[0].name.replace('.gpx', '');
         } else {
-            // Fetch from your GitHub /gpx/ folder
             const res = await fetch(`./gpx/${routeFile}`);
             if (!res.ok) throw new Error("GPX file not found on server.");
             gpxText = await res.text();
             currentRouteName = document.getElementById('routeSelect').options[document.getElementById('routeSelect').selectedIndex].text;
         }
 
-        // Send to the Slicer!
         if (sliceMethod === 'yolo') {
             alert("YOLO Mode coming soon! Using 1km for now.");
             executeStandardSlicer(gpxText, 1.0);
@@ -92,7 +116,6 @@ function executeStandardSlicer(gpxText, intervalKm) {
         
         cumulativeKm += getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2);
         
-        // Try to find power data (if Zwift GPX)
         let ext = trkpts[i].getElementsByTagName("extensions")[0];
         if (ext) {
             let pwrNode = ext.getElementsByTagName("power")[0];
@@ -102,18 +125,14 @@ function executeStandardSlicer(gpxText, intervalKm) {
             }
         }
 
-        // Did we cross the slice threshold? Or is it the finish line?
         if (cumulativeKm >= targetNextSplitKm || i === trkpts.length - 1) {
             let endPointTime = new Date(trkpts[i].getElementsByTagName("time")[0].textContent).getTime();
             let segSecs = Math.round((endPointTime - startPointTime) / 1000);
             
-            // If no power data exists, default to 150w for math purposes
             let avgWatts = currentSegmentWattsCount > 0 ? Math.round(currentSegmentWattsSum / currentSegmentWattsCount) : 150;
-            
             let isFinish = i === trkpts.length - 1;
             let segName = isFinish ? "Finish Line" : `Km ${targetNextSplitKm.toFixed(1)}`;
             
-            // Only add if the segment actually took time (prevents weird 0-second micro-segments at the finish)
             if (segSecs > 0) {
                 generatedSegments.push({
                     name: segName,
@@ -123,7 +142,6 @@ function executeStandardSlicer(gpxText, intervalKm) {
                 });
             }
 
-            // Reset for the next slice
             startPointTime = endPointTime;
             currentSegmentWattsSum = 0;
             currentSegmentWattsCount = 0;
@@ -135,6 +153,8 @@ function executeStandardSlicer(gpxText, intervalKm) {
     isDataLoaded = true;
     
     document.getElementById('startBtn').disabled = false;
+    document.getElementById('trim-instructions').style.display = 'block';
+
     const statusEl = document.getElementById('strava-status');
     statusEl.innerText = `✓ Sliced into ${baseSegments.length} checkpoints!`;
     statusEl.className = "status-text ahead";
@@ -142,6 +162,14 @@ function executeStandardSlicer(gpxText, intervalKm) {
     document.getElementById('title-text').innerText = currentRouteName;
 
     applyNewTarget();
+}
+
+// --- NEW: Trim Segment Feature ---
+// Allows user to chop off descents from their GPX file
+function removeSegment(index) {
+    if (startTime) return; // Don't let them delete during a ride!
+    baseSegments.splice(index, 1);
+    applyNewTarget(); // Instantly re-calculates the pacing targets
 }
 
 // --- Math & Utilities ---
@@ -220,12 +248,18 @@ function renderList() {
         const prevTargetCumSec = index > 0 ? activeSegments[index-1].targetCumSec : 0;
         const targetSegSec = seg.targetCumSec - prevTargetCumSec;
 
+        // Show trash can only if ride hasn't started
+        const deleteBtnHtml = !startTime ? `<button onclick="removeSegment(${index})" style="background: none; border: none; cursor: pointer; color: #f44336; font-size: 1.2em; margin-left: 10px;" title="Remove this split">🗑️</button>` : '';
+
         const div = document.createElement('div');
         div.className = 'segment';
         div.innerHTML = `
-            <div class="segment-info">
-                <div class="segment-name">${seg.name}</div>
-                <div class="segment-target" style="color: var(--target-blue); font-weight: bold;">Target: ${formatTime(seg.targetCumSec)} (${formatTime(targetSegSec)}) @ ${seg.targetPower}W</div>
+            <div class="segment-info" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div>
+                    <div class="segment-name">${seg.name}</div>
+                    <div class="segment-target" style="color: var(--target-blue); font-weight: bold;">Target: ${formatTime(seg.targetCumSec)} (${formatTime(targetSegSec)}) @ ${seg.targetPower}W</div>
+                </div>
+                <div>${deleteBtnHtml}</div>
             </div>
             <div class="segment-action" id="action-${index}"></div>
         `;
@@ -264,6 +298,11 @@ function startRide() {
     document.getElementById('startBtn').style.backgroundColor = '#334155';
     document.getElementById('startBtn').innerText = "RIDING";
     document.getElementById('resetBtn').style.display = 'inline-block';
+    
+    // Hide the trim instructions once started
+    document.getElementById('trim-instructions').style.display = 'none';
+    
+    renderList(); // Re-render to hide trash cans
     renderActionDiv(currentActiveIndex); 
     
     timerInterval = setInterval(() => {
@@ -287,6 +326,10 @@ function recordSplit(index) {
 function resetRideProgress() {
     if(confirm("Are you sure you want to reset?")) {
         hardResetState(true);
+        document.getElementById('trim-instructions').style.display = 'block';
         renderList();
     }
 }
+
+// Boot up!
+initDropdown();
