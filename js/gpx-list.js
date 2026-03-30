@@ -7,5 +7,9 @@ const gpxLibrary = [
     {
         "filename": "road_to_sky.gpx",
         "name": "Zwift - Zone 2 - 74% (90 min)"
+    },
+    {
+        "filename": "Zwift_Zone_2_74_90_min_-trimmed (1).gpx",
+        "name": "Zwift_Zone_2_74_90_min_-trimmed"
     }
 ];
