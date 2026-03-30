@@ -196,3 +196,15 @@ body.cockpit-mode #mobile-cockpit-close {
     cursor: pointer;
     z-index: 10000;
 }
+/* =========================================
+   DESKTOP DASHBOARD LAYOUT
+========================================= */
+@media (min-width: 1024px) {
+    .dashboard-grid {
+        display: grid;
+        /* 1st column is 320px for controls, the other two split the remaining space */
+        grid-template-columns: 320px minmax(0, 1fr) minmax(0, 1fr);
+        gap: 15px;
+        align-items: stretch;
+    }
+}
