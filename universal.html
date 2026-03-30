@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Universal Route Pacer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="css/pacer.css?v=3">
+    <link rel="stylesheet" href="css/pacer.css?v=5">
 </head>
 <body>
 
@@ -17,7 +17,11 @@
             <a href="index.html" style="color: var(--target-blue); text-decoration: none; font-weight: bold; font-size: 0.9em; margin-left: 10px;">🔙 Go to Alpe</a>
         </div>
         
-        <div id="settings-container" style="margin-bottom: 15px;">
+        <div id="strava-auth-zone">
+            <button id="strava-btn" class="strava-btn" onclick="startStravaAuth()">Connect Strava to fetch PR</button>
+        </div>
+
+        <div id="settings-container" style="display: none; margin-bottom: 15px;">
             <div id="data-settings-box" class="calculator-box" style="display: flex; margin-top: 10px; background-color: #f8fafc; margin-bottom: 0;">
                 
                 <div class="calc-row">
@@ -32,16 +36,19 @@
                         <option value="0.5">Every 0.5 km</option>
                         <option value="1.609">Every 1.0 mile</option>
                         <option value="0.804">Every 0.5 mile</option>
-                        <option value="yolo" disabled>🔥 YOLO Mode (Coming Soon)</option>
                     </select>
                 </div>
 
-                <div class="calc-row" id="custom-upload-row" style="display: none;">
-                    <input type="file" id="gpxInput" accept=".gpx" style="max-width: 200px;">
+                <div class="calc-row">
+                    <label style="font-weight: bold;">Data to Grab:</label>
+                    <select id="attemptSelect" class="calc-input">
+                        <option value="best">Best (Last 50)</option>
+                        <option value="recent">Most Recent</option>
+                    </select>
                 </div>
 
                 <div class="calc-row">
-                    <button id="fetchBtn" class="calc-btn" style="background-color: var(--zwift-orange);" onclick="loadAndSliceRoute()">Load & Slice Route</button>
+                    <button id="fetchBtn" class="calc-btn" style="background-color: var(--zwift-orange);" onclick="fetchAndSliceStravaData()">Fetch & Slice</button>
                 </div>
 
             </div>
@@ -74,8 +81,7 @@
 
     <div id="segmentList"></div>
 
-    <script src="js/gpx-list.js"></script>
-    <script src="js/universal.js?v=3"></script>
+    <script src="js/universal.js?v=5"></script>
     
 </body>
 </html>
