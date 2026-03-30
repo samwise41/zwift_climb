@@ -9,6 +9,7 @@ const universalRoutes = [
     { id: 16669530, name: "Epic KOM" },
     { id: 16425130, name: "Volcano Circuit CCW" },
     { id: 21343975, name: "Titans Grove KOM" },
+    { id: 37033150, name: "The Grade" },
     { id: 16425133, name: "Innsbruck KOM" }
 ];
 
