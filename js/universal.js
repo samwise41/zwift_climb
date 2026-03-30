@@ -91,6 +91,7 @@ function showApp() {
 }
 
 // --- Fetch & Slicer Engine (Explicit PR Version) ---
+// --- Fetch & Slicer Engine (Detective Version) ---
 async function fetchAndSliceStravaData() {
     const selectEl = document.getElementById('routeSelect');
     const segmentId = selectEl.value;
@@ -112,7 +113,7 @@ async function fetchAndSliceStravaData() {
     const fetchLimit = attemptType === 'best' ? 200 : 1;
 
     try {
-        console.log(`Fetching segment efforts for ID: ${segmentId}`);
+        console.log(`\n--- FETCHING DATA FOR SEGMENT: ${segmentId} ---`);
         const effortsRes = await fetch(`https://www.strava.com/api/v3/segment_efforts?segment_id=${segmentId}&per_page=${fetchLimit}`, {
             headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
         });
@@ -123,9 +124,15 @@ async function fetchAndSliceStravaData() {
         if (effortsData.message || effortsData.errors) throw new Error(`Strava Error: ${effortsData.message || 'Unknown'}`);
         if (!Array.isArray(effortsData) || effortsData.length === 0) throw new Error("Strava found 0 rides for you on this route.");
 
+        console.log(`Strava returned ${effortsData.length} total rides for this segment.`);
+        
+        // Print every single ride Strava gave us to the console so we can see what it's hiding
+        effortsData.forEach((effort, index) => {
+            console.log(`Ride ${index + 1}: Date: ${effort.start_date_local.split('T')[0]} | Time: ${formatTime(effort.elapsed_time)} | Activity ID: ${effort.activity.id}`);
+        });
+
         let targetEffort = null;
 
-        // NEW: Explicitly ask Strava for the Official PR
         if (attemptType === 'best') {
             if (statusEl) statusEl.innerText = "⏳ Step 3: Asking Strava for Official PR...";
             
@@ -136,20 +143,22 @@ async function fetchAndSliceStravaData() {
             
             let officialPrId = null;
             if (segData.athlete_segment_stats && segData.athlete_segment_stats.pr_activity_id) {
-                officialPrId = segData.athlete_segment_stats.pr_activity_id;
-                console.log("Strava says your Official PR Activity ID is:", officialPrId);
+                officialPrId = String(segData.athlete_segment_stats.pr_activity_id);
+                console.log(`Strava says your Official PR Activity ID is: ${officialPrId}`);
             }
 
-            // Find that exact official PR in our downloaded list
+            // Force strict string matching to prevent Number/String type errors
             if (officialPrId) {
-                targetEffort = effortsData.find(e => e.activity.id === officialPrId);
+                targetEffort = effortsData.find(e => String(e.activity.id) === officialPrId);
+                if (targetEffort) console.log("✅ Successfully matched your Official PR ID to a downloaded ride!");
             }
 
-            // Fallback just in case the PR is hidden by privacy settings
+            // Mathematical Fallback
             if (!targetEffort) {
-                console.warn("Official PR hidden or not found. Falling back to mathematical sort.");
+                console.warn("⚠️ Official PR ID not found in the ride list! Falling back to mathematical sort.");
                 effortsData.sort((a, b) => a.elapsed_time - b.elapsed_time);
                 targetEffort = effortsData[0];
+                console.log(`Fastest ride found mathematically: ${formatTime(targetEffort.elapsed_time)}`);
             }
         } else {
             if (statusEl) statusEl.innerText = "⏳ Step 3: Finding most recent ride...";
@@ -167,7 +176,6 @@ async function fetchAndSliceStravaData() {
         const formattedDate = effortDateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
         if (statusEl) statusEl.innerText = "⏳ Step 4: Downloading your ride stream...";
-        console.log(`Fetching streams for Activity ID: ${activityId}`);
         
         const streamRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=distance,time,watts&key_by_type=true`, {
             headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
