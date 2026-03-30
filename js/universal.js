@@ -2,14 +2,6 @@
 // js/universal.js - The Universal GPX Slicer
 // ==========================================
 
-// --- 1. YOUR GPX LIBRARY ---
-// Just add new files here when you drop them into your /gpx/ folder!
-const gpxLibrary = [
-    { filename: "epic_kom.gpx", name: "Epic KOM" },
-    { filename: "road_to_sky.gpx", name: "Road to Sky" },
-    { filename: "volcano_ccw.gpx", name: "Volcano Circuit CCW" }
-];
-
 // --- Core State ---
 let baseSegments = [];
 let activeSegments = [];
@@ -26,14 +18,18 @@ function initDropdown() {
     const selectEl = document.getElementById('routeSelect');
     selectEl.innerHTML = ''; 
     
-    gpxLibrary.forEach(route => {
-        const opt = document.createElement('option');
-        opt.value = route.filename;
-        opt.textContent = route.name;
-        selectEl.appendChild(opt);
-    });
+    // gpxLibrary is now automatically loaded from js/gpx-list.js
+    if (typeof gpxLibrary !== 'undefined') {
+        gpxLibrary.forEach(route => {
+            const opt = document.createElement('option');
+            opt.value = route.filename;
+            opt.textContent = route.name;
+            selectEl.appendChild(opt);
+        });
+    } else {
+        console.warn("gpxLibrary not found. Make sure the GitHub Action has run!");
+    }
     
-    // Always add the custom upload at the bottom
     const customOpt = document.createElement('option');
     customOpt.value = "custom";
     customOpt.textContent = "Upload My Own GPX...";
@@ -153,7 +149,6 @@ function executeStandardSlicer(gpxText, intervalKm) {
     isDataLoaded = true;
     
     document.getElementById('startBtn').disabled = false;
-    document.getElementById('trim-instructions').style.display = 'block';
 
     const statusEl = document.getElementById('strava-status');
     statusEl.innerText = `✓ Sliced into ${baseSegments.length} checkpoints!`;
@@ -162,14 +157,6 @@ function executeStandardSlicer(gpxText, intervalKm) {
     document.getElementById('title-text').innerText = currentRouteName;
 
     applyNewTarget();
-}
-
-// --- NEW: Trim Segment Feature ---
-// Allows user to chop off descents from their GPX file
-function removeSegment(index) {
-    if (startTime) return; // Don't let them delete during a ride!
-    baseSegments.splice(index, 1);
-    applyNewTarget(); // Instantly re-calculates the pacing targets
 }
 
 // --- Math & Utilities ---
@@ -248,9 +235,6 @@ function renderList() {
         const prevTargetCumSec = index > 0 ? activeSegments[index-1].targetCumSec : 0;
         const targetSegSec = seg.targetCumSec - prevTargetCumSec;
 
-        // Show trash can only if ride hasn't started
-        const deleteBtnHtml = !startTime ? `<button onclick="removeSegment(${index})" style="background: none; border: none; cursor: pointer; color: #f44336; font-size: 1.2em; margin-left: 10px;" title="Remove this split">🗑️</button>` : '';
-
         const div = document.createElement('div');
         div.className = 'segment';
         div.innerHTML = `
@@ -259,7 +243,6 @@ function renderList() {
                     <div class="segment-name">${seg.name}</div>
                     <div class="segment-target" style="color: var(--target-blue); font-weight: bold;">Target: ${formatTime(seg.targetCumSec)} (${formatTime(targetSegSec)}) @ ${seg.targetPower}W</div>
                 </div>
-                <div>${deleteBtnHtml}</div>
             </div>
             <div class="segment-action" id="action-${index}"></div>
         `;
@@ -299,10 +282,7 @@ function startRide() {
     document.getElementById('startBtn').innerText = "RIDING";
     document.getElementById('resetBtn').style.display = 'inline-block';
     
-    // Hide the trim instructions once started
-    document.getElementById('trim-instructions').style.display = 'none';
-    
-    renderList(); // Re-render to hide trash cans
+    renderList(); 
     renderActionDiv(currentActiveIndex); 
     
     timerInterval = setInterval(() => {
@@ -326,7 +306,6 @@ function recordSplit(index) {
 function resetRideProgress() {
     if(confirm("Are you sure you want to reset?")) {
         hardResetState(true);
-        document.getElementById('trim-instructions').style.display = 'block';
         renderList();
     }
 }
