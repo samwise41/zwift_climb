@@ -76,7 +76,7 @@ function showApp() {
     });
 }
 
-// --- Fetch & Slicer Engine (Diagnostic Version) ---
+// --- Fetch & Slicer Engine (Bulletproof Activity Version) ---
 async function fetchAndSliceStravaData() {
     const segmentId = document.getElementById('routeSelect').value;
     currentRouteName = document.getElementById('routeSelect').options[document.getElementById('routeSelect').selectedIndex].text;
@@ -111,18 +111,21 @@ async function fetchAndSliceStravaData() {
         }
 
         const targetEffort = effortsData[0];
-        const effortId = targetEffort.id;
+        
+        // NEW: Grab the parent Activity ID and the exact indices of the segment
+        const activityId = targetEffort.activity.id;
+        const startIndex = targetEffort.start_index;
+        const endIndex = targetEffort.end_index;
 
-        // 2. Fetch the Streams API for this specific effort
+        // 2. Fetch the Streams API for the ENTIRE ACTIVITY
         statusEl.innerText = "⏳ Downloading telemetry streams...";
         
-        const streamRes = await fetch(`https://www.strava.com/api/v3/segment_efforts/${effortId}/streams?keys=distance,time,watts&key_by_type=true`, {
+        const streamRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=distance,time,watts&key_by_type=true`, {
             headers: { 'Authorization': `Bearer ${stravaAccessToken}` }
         });
         
         const streamData = await streamRes.json();
         
-        // --- DIAGNOSTIC CHECK ---
         if (streamData.message || streamData.errors) {
             console.error("Strava Error payload:", streamData);
             throw new Error(`Strava Blocked Stream: ${streamData.message || 'Unknown API Error'}`);
@@ -130,14 +133,23 @@ async function fetchAndSliceStravaData() {
 
         if (!streamData.distance || !streamData.time) {
             console.error("Stream Payload:", streamData);
-            throw new Error("No distance or time telemetry found for this effort.");
+            throw new Error("No distance or time telemetry found for this activity.");
         }
 
-        const distances = streamData.distance.data; 
-        const times = streamData.time.data; 
-        const watts = streamData.watts ? streamData.watts.data : []; 
+        // 3. Extract just the exact portion of the ride for this segment
+        let rawDistances = streamData.distance.data.slice(startIndex, endIndex + 1);
+        let rawTimes = streamData.time.data.slice(startIndex, endIndex + 1);
+        let rawWatts = streamData.watts ? streamData.watts.data.slice(startIndex, endIndex + 1) : [];
 
-        // 3. Slice the Arrays!
+        // Normalize so the segment starts exactly at 0 meters and 0 seconds
+        let startDist = rawDistances[0];
+        let startTimeVal = rawTimes[0];
+        
+        const distances = rawDistances.map(d => d - startDist);
+        const times = rawTimes.map(t => t - startTimeVal);
+        const watts = rawWatts;
+
+        // 4. Slice the Arrays!
         statusEl.innerText = "⏳ Slicing data...";
         let generatedSegments = [];
         let intervalMeters = sliceIntervalKm * 1000;
@@ -186,7 +198,6 @@ async function fetchAndSliceStravaData() {
 
     } catch (error) {
         console.error("Stream Fetch Error:", error);
-        // Display the EXACT error to the screen
         statusEl.innerText = `❌ ${error.message}`;
         statusEl.className = "status-text behind";
     }
