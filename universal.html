@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Universal Route Pacer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="css/pacer.css?v=1">
+    <link rel="stylesheet" href="css/pacer.css?v=2">
 </head>
 <body>
 
@@ -22,11 +22,7 @@
                 
                 <div class="calc-row">
                     <label style="font-weight: bold;">Select Route:</label>
-                    <select id="routeSelect" class="calc-input">
-                        <option value="epic_kom.gpx">Epic KOM</option>
-                        <option value="volcano_ccw.gpx">Volcano Circuit CCW</option>
-                        <option value="custom">Upload My Own GPX</option>
-                    </select>
+                    <select id="routeSelect" class="calc-input"></select>
                 </div>
 
                 <div class="calc-row" id="slicer-row">
@@ -76,9 +72,13 @@
         </div>
     </div>
 
+    <div id="trim-instructions" style="display: none; text-align: center; color: #f44336; font-size: 0.85em; margin-bottom: 10px;">
+        <em>Did your GPX file include a descent? Tap the 🗑️ icon to trim unwanted splits before you start!</em>
+    </div>
+
     <div id="segmentList"></div>
 
-    <script src="js/universal.js?v=1"></script>
+    <script src="js/universal.js?v=2"></script>
     
 </body>
 </html>
