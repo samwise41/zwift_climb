@@ -7,9 +7,5 @@ const gpxLibrary = [
     {
         "filename": "Zwift_Zone_2_74_90_min_-trimmed.gpx",
         "name": "Zwift_Zone_2_74_90_min_-trimmed"
-    },
-    {
-        "filename": "epic_kom.gpx",
-        "name": "Zwift_Zone_2_74_90_min_-trimmed"
     }
 ];
