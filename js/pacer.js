@@ -134,7 +134,7 @@ function renderCockpitAction() {
 
     let html = "";
 
-    // 1. PREVIOUS SEGMENT (replaces static header)
+    // 1. PREVIOUS SEGMENT
     if (currentActiveIndex > 0) {
         const prevIndex = currentActiveIndex - 1;
         const prevSeg = activeSegments[prevIndex];
@@ -152,7 +152,7 @@ function renderCockpitAction() {
             </div>`;
     }
 
-    // 2. CURRENT SEGMENT & BUTTON
+    // 2. CURRENT SEGMENT & BUTTON (Removed "Up Next" redundancy)
     if (currentActiveIndex < activeSegments.length) {
         const currSeg = activeSegments[currentActiveIndex];
         const prevTargetCumSec = currentActiveIndex > 0 ? activeSegments[currentActiveIndex-1].targetCumSec : 0;
@@ -162,10 +162,7 @@ function renderCockpitAction() {
         const btnText = !startTime ? "Waiting to Start..." : `Split: ${currSeg.name}`;
 
         html += `
-            <div style="font-size: 1.3em; font-weight: 900; color: #0f172a; margin-top: 10px;">
-                📍 Up Next: ${currSeg.name}
-            </div>
-            <div style="font-size: 1.1em; color: var(--target-blue); font-weight: bold; margin-bottom: 15px;">
+            <div style="font-size: 1.2em; color: var(--target-blue); font-weight: bold; margin-top: 10px; margin-bottom: 15px;">
                 🎯 Target: ${formatTime(targetSegSec)} @ ${currSeg.targetPower}W
             </div>
             <button class="split-btn" ${disabledState} onclick="recordSplit(${currentActiveIndex})" style="width: 100%; padding: 20px; font-size: 1.5em; border-radius: 12px; font-weight: bold; border: none; color: white;">${btnText}</button>
@@ -210,7 +207,7 @@ function renderPipAction() {
 
     let html = '';
     
-    // 2. Current Segment & Button
+    // 2. Current Segment & Button (Removed "Up Next" redundancy)
     if (currentActiveIndex < activeSegments.length) {
         const currSeg = activeSegments[currentActiveIndex];
         const prevTargetCumSec = currentActiveIndex > 0 ? activeSegments[currentActiveIndex-1].targetCumSec : 0;
@@ -220,8 +217,7 @@ function renderPipAction() {
         const btnText = !startTime ? "Waiting to Start..." : `Split: ${currSeg.name}`;
 
         html += `
-            <div style="font-size: 1.2em; font-weight: 900; color: #f8fafc; margin-bottom: 2px;">📍 Up Next: ${currSeg.name}</div>
-            <div style="font-size: 1em; color: #3daee9; font-weight: bold; margin-bottom: 12px;">🎯 Target: ${formatTime(targetSegSec)} @ ${currSeg.targetPower}W</div>
+            <div style="font-size: 1.1em; color: #3daee9; font-weight: bold; margin-bottom: 12px; margin-top: 5px;">🎯 Target: ${formatTime(targetSegSec)} @ ${currSeg.targetPower}W</div>
             <button id="pip-split-btn" style="color: white; border: none; padding: 15px 20px; border-radius: 8px; font-weight: bold; font-size: 1.3em; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; ${disabledStyle}">${btnText}</button>
         `;
     } else {
