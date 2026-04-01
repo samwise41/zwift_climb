@@ -127,7 +127,7 @@ function toggleDOMOverlay() {
     }
 }
 
-{// Mobile/DOM Overlay Render
+// Mobile/DOM Overlay Render
 function renderCockpitAction() {
     const cockpitZone = document.getElementById('cockpit-active-segment');
     if (!cockpitZone || !isCockpitMode) return;
