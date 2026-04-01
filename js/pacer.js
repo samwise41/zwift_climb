@@ -81,7 +81,7 @@ async function toggleCockpitMode() {
 
             pipWindow.document.body.innerHTML = `
                 <div style="background-color: #0f172a; color: white; height: 100vh; width: 100vw; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; position: absolute; top: 0; left: 0;">
-                    <div style="font-size: 1.2em; color: #3daee9; margin-bottom: 5px; text-align: center; font-weight: bold;">${currentClimb ? currentClimb.name : 'Climb Pacer'}</div>
+                    <div id="pip-header" style="font-size: 1.2em; color: #3daee9; margin-bottom: 5px; text-align: center; font-weight: bold;">${currentClimb ? currentClimb.name : 'Climb Pacer'}</div>
                     <div id="pip-timer" style="font-size: 4.5em; font-weight: bold; font-variant-numeric: tabular-nums; line-height: 1; margin: 5px 0;">${document.getElementById('timer').innerText}</div>
                     <div id="pip-main-delta" style="font-size: 2em; font-weight: bold; margin-bottom: 20px;">${document.getElementById('main-delta').innerText}</div>
                     <div id="pip-action-zone" style="width: 100%; text-align: center;"></div>
@@ -101,7 +101,7 @@ async function toggleCockpitMode() {
             });
 
             btn.innerHTML = '❌ Close PiP';
-            return; // Exit here if PiP succeeds!
+            return; 
         } catch (error) {
             console.warn("PiP blocked or failed, falling back to overlay:", error);
         }
@@ -133,16 +133,48 @@ function renderCockpitAction() {
     if (!cockpitZone || !isCockpitMode) return;
 
     let html = "";
-    if (currentActiveIndex < activeSegments.length) {
-        const disabledState = !startTime ? 'disabled style="opacity:0.5; cursor:not-allowed; background-color:#334155;"' : 'style="background-color: var(--zwift-orange); cursor: pointer;"';
-        const btnText = !startTime ? "Waiting to Start..." : `Split: ${activeSegments[currentActiveIndex].name}`;
 
-        html += `<div style="font-size: 1.2em; margin-bottom: 10px; color: var(--target-blue);">Next: ${activeSegments[currentActiveIndex].name}</div>`;
-        html += `<button class="split-btn" ${disabledState} onclick="recordSplit(${currentActiveIndex})" style="width: 100%; padding: 20px; font-size: 1.5em; border-radius: 12px; font-weight: bold; border: none; color: white;">${btnText}</button>`;
+    // 1. PREVIOUS SEGMENT (replaces static header)
+    if (currentActiveIndex > 0) {
+        const prevIndex = currentActiveIndex - 1;
+        const prevSeg = activeSegments[prevIndex];
+        const prevPrevCumSec = prevIndex > 0 ? actualCumSecData[prevIndex - 1] : 0;
+        const actualSplitSecs = actualCumSecData[prevIndex] - prevPrevCumSec;
+
+        html += `
+            <div style="font-size: 0.9em; color: #64748b; margin-bottom: 8px; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+                🔙 Prev: ${prevSeg.name} | Done: ${formatTime(actualSplitSecs)} (Target: ${prevSeg.targetPower}W)
+            </div>`;
     } else {
-        html += `<div style="font-size: 2em; color: var(--ahead-green); font-weight: bold;">RIDE COMPLETE!</div>`;
+        html += `
+            <div style="font-size: 0.9em; color: #64748b; margin-bottom: 8px; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+                🏁 Awaiting First Split...
+            </div>`;
     }
 
+    // 2. CURRENT SEGMENT & BUTTON
+    if (currentActiveIndex < activeSegments.length) {
+        const currSeg = activeSegments[currentActiveIndex];
+        const prevTargetCumSec = currentActiveIndex > 0 ? activeSegments[currentActiveIndex-1].targetCumSec : 0;
+        const targetSegSec = currSeg.targetCumSec - prevTargetCumSec;
+
+        const disabledState = !startTime ? 'disabled style="opacity:0.5; cursor:not-allowed; background-color:#334155;"' : 'style="background-color: var(--zwift-orange); cursor: pointer;"';
+        const btnText = !startTime ? "Waiting to Start..." : `Split: ${currSeg.name}`;
+
+        html += `
+            <div style="font-size: 1.3em; font-weight: 900; color: #0f172a; margin-top: 10px;">
+                📍 Up Next: ${currSeg.name}
+            </div>
+            <div style="font-size: 1.1em; color: var(--target-blue); font-weight: bold; margin-bottom: 15px;">
+                🎯 Target: ${formatTime(targetSegSec)} @ ${currSeg.targetPower}W
+            </div>
+            <button class="split-btn" ${disabledState} onclick="recordSplit(${currentActiveIndex})" style="width: 100%; padding: 20px; font-size: 1.5em; border-radius: 12px; font-weight: bold; border: none; color: white;">${btnText}</button>
+        `;
+    } else {
+        html += `<div style="font-size: 2em; color: var(--ahead-green); font-weight: bold; margin-top: 10px;">🎉 RIDE COMPLETE!</div>`;
+    }
+
+    // 3. UNDO BUTTON
     if (currentActiveIndex > 0 && startTime) {
         const lastSegmentName = activeSegments[currentActiveIndex - 1].name;
         html += `<div style="margin-top: 25px;">
@@ -156,17 +188,47 @@ function renderCockpitAction() {
 function renderPipAction() {
     if (!pipWindow || !isDataLoaded) return;
     const zone = pipWindow.document.getElementById('pip-action-zone');
+    const header = pipWindow.document.getElementById('pip-header');
 
-    let html = '';
-    if (currentActiveIndex < activeSegments.length) {
-        const disabledStyle = !startTime ? 'opacity: 0.5; cursor: not-allowed; background-color: #334155;' : 'cursor: pointer; background-color: #fc6719;';
-        const btnText = !startTime ? "Waiting to Start..." : `Split: ${activeSegments[currentActiveIndex].name}`;
-
-        html += `<button id="pip-split-btn" style="color: white; border: none; padding: 15px 20px; border-radius: 8px; font-weight: bold; font-size: 1.3em; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; ${disabledStyle}">${btnText}</button>`;
-    } else {
-        html += `<div style="font-size: 1.8em; color: #4caf50; font-weight: bold;">RIDE COMPLETE!</div>`;
+    // 1. Update Header with Previous Segment Data
+    if (header) {
+        if (currentActiveIndex > 0) {
+            const prevIndex = currentActiveIndex - 1;
+            const prevSeg = activeSegments[prevIndex];
+            const prevPrevCumSec = prevIndex > 0 ? actualCumSecData[prevIndex - 1] : 0;
+            const actualSplitSecs = actualCumSecData[prevIndex] - prevPrevCumSec;
+            
+            header.innerHTML = `🔙 Prev: ${prevSeg.name} | Done: ${formatTime(actualSplitSecs)} (Target: ${prevSeg.targetPower}W)`;
+            header.style.color = '#94a3b8';
+            header.style.fontSize = '0.9em';
+        } else {
+            header.innerHTML = `🏁 Awaiting First Split...`;
+            header.style.color = '#94a3b8';
+            header.style.fontSize = '0.9em';
+        }
     }
 
+    let html = '';
+    
+    // 2. Current Segment & Button
+    if (currentActiveIndex < activeSegments.length) {
+        const currSeg = activeSegments[currentActiveIndex];
+        const prevTargetCumSec = currentActiveIndex > 0 ? activeSegments[currentActiveIndex-1].targetCumSec : 0;
+        const targetSegSec = currSeg.targetCumSec - prevTargetCumSec;
+
+        const disabledStyle = !startTime ? 'opacity: 0.5; cursor: not-allowed; background-color: #334155;' : 'cursor: pointer; background-color: #fc6719;';
+        const btnText = !startTime ? "Waiting to Start..." : `Split: ${currSeg.name}`;
+
+        html += `
+            <div style="font-size: 1.2em; font-weight: 900; color: #f8fafc; margin-bottom: 2px;">📍 Up Next: ${currSeg.name}</div>
+            <div style="font-size: 1em; color: #3daee9; font-weight: bold; margin-bottom: 12px;">🎯 Target: ${formatTime(targetSegSec)} @ ${currSeg.targetPower}W</div>
+            <button id="pip-split-btn" style="color: white; border: none; padding: 15px 20px; border-radius: 8px; font-weight: bold; font-size: 1.3em; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; ${disabledStyle}">${btnText}</button>
+        `;
+    } else {
+        html += `<div style="font-size: 1.8em; color: #4caf50; font-weight: bold;">🎉 RIDE COMPLETE!</div>`;
+    }
+
+    // 3. Undo Button
     if (currentActiveIndex > 0 && startTime) {
         const lastSegmentName = activeSegments[currentActiveIndex - 1].name;
         html += `<div style="margin-top: 15px;">
@@ -176,6 +238,7 @@ function renderPipAction() {
 
     zone.innerHTML = html;
 
+    // Attach listeners
     const splitBtn = pipWindow.document.getElementById('pip-split-btn');
     if (splitBtn && startTime) {
         splitBtn.onmousedown = () => splitBtn.style.transform = 'scale(0.95)';
