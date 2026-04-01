@@ -79,11 +79,12 @@ async function toggleCockpitMode() {
                 height: 280
             });
 
+            // Reduced margin-bottom on pip-main-delta from 20px to 5px
             pipWindow.document.body.innerHTML = `
                 <div style="background-color: #0f172a; color: white; height: 100vh; width: 100vw; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; position: absolute; top: 0; left: 0;">
                     <div id="pip-header" style="font-size: 1.2em; color: #3daee9; margin-bottom: 5px; text-align: center; font-weight: bold;">${currentClimb ? currentClimb.name : 'Climb Pacer'}</div>
                     <div id="pip-timer" style="font-size: 4.5em; font-weight: bold; font-variant-numeric: tabular-nums; line-height: 1; margin: 5px 0;">${document.getElementById('timer').innerText}</div>
-                    <div id="pip-main-delta" style="font-size: 2em; font-weight: bold; margin-bottom: 20px;">${document.getElementById('main-delta').innerText}</div>
+                    <div id="pip-main-delta" style="font-size: 2em; font-weight: bold; margin-bottom: 5px;">${document.getElementById('main-delta').innerText}</div>
                     <div id="pip-action-zone" style="width: 100%; text-align: center;"></div>
                 </div>
             `;
@@ -152,20 +153,21 @@ function renderCockpitAction() {
             </div>`;
     }
 
-    // 2. CURRENT SEGMENT & BUTTON
+    // 2. CURRENT SEGMENT & BIGGER BUTTON WITH NESTED TARGET
     if (currentActiveIndex < activeSegments.length) {
         const currSeg = activeSegments[currentActiveIndex];
         const prevTargetCumSec = currentActiveIndex > 0 ? activeSegments[currentActiveIndex-1].targetCumSec : 0;
         const targetSegSec = currSeg.targetCumSec - prevTargetCumSec;
 
         const disabledState = !startTime ? 'disabled style="opacity:0.5; cursor:not-allowed; background-color:#334155;"' : 'style="background-color: var(--zwift-orange); cursor: pointer;"';
-        const btnText = !startTime ? "Waiting to Start..." : `Split: ${currSeg.name}`;
+        
+        // Multi-line button text
+        const btnText = !startTime 
+            ? "Waiting to Start..." 
+            : `Split: ${currSeg.name}<br><span style="font-size: 0.75em; font-weight: normal;">🎯 Target: ${currSeg.targetPower}W for ${formatTime(targetSegSec)}</span>`;
 
         html += `
-            <div style="font-size: 1.1em; color: var(--target-blue); font-weight: bold; margin-top: 6px; margin-bottom: 8px;">
-                🎯 Target: ${formatTime(targetSegSec)} @ ${currSeg.targetPower}W
-            </div>
-            <button class="split-btn" ${disabledState} onclick="recordSplit(${currentActiveIndex})" style="width: 100%; padding: 12px; font-size: 1.3em; border-radius: 10px; font-weight: bold; border: none; color: white;">${btnText}</button>
+            <button class="split-btn" ${disabledState} onclick="recordSplit(${currentActiveIndex})" style="width: 100%; padding: 16px; font-size: 1.4em; border-radius: 10px; font-weight: bold; border: none; color: white; line-height: 1.3; margin-top: 5px;">${btnText}</button>
         `;
     } else {
         html += `<div style="font-size: 1.5em; color: var(--ahead-green); font-weight: bold; margin-top: 10px;">🎉 RIDE COMPLETE!</div>`;
@@ -174,7 +176,7 @@ function renderCockpitAction() {
     // 3. UNDO BUTTON
     if (currentActiveIndex > 0 && startTime) {
         const lastSegmentName = activeSegments[currentActiveIndex - 1].name;
-        html += `<div style="margin-top: 12px;">
+        html += `<div style="margin-top: 10px;">
                     <button class="undo-btn" onclick="undoSplit(${currentActiveIndex - 1})" style="background: none; border: 1px solid #94a3b8; color: #94a3b8; padding: 8px 16px; font-size: 1em; border-radius: 8px; cursor: pointer;">↺ Undo: ${lastSegmentName}</button>
                  </div>`;
     }
@@ -207,18 +209,21 @@ function renderPipAction() {
 
     let html = '';
     
-    // 2. Current Segment & Button
+    // 2. Current Segment & BIGGER BUTTON WITH NESTED TARGET
     if (currentActiveIndex < activeSegments.length) {
         const currSeg = activeSegments[currentActiveIndex];
         const prevTargetCumSec = currentActiveIndex > 0 ? activeSegments[currentActiveIndex-1].targetCumSec : 0;
         const targetSegSec = currSeg.targetCumSec - prevTargetCumSec;
 
         const disabledStyle = !startTime ? 'opacity: 0.5; cursor: not-allowed; background-color: #334155;' : 'cursor: pointer; background-color: #fc6719;';
-        const btnText = !startTime ? "Waiting to Start..." : `Split: ${currSeg.name}`;
+        
+        // Multi-line button text
+        const btnText = !startTime 
+            ? "Waiting to Start..." 
+            : `Split: ${currSeg.name}<br><span style="font-size: 0.8em; font-weight: normal; color: #f8fafc;">🎯 Target: ${currSeg.targetPower}W for ${formatTime(targetSegSec)}</span>`;
 
         html += `
-            <div style="font-size: 1em; color: #3daee9; font-weight: bold; margin-bottom: 8px; margin-top: 4px;">🎯 Target: ${formatTime(targetSegSec)} @ ${currSeg.targetPower}W</div>
-            <button id="pip-split-btn" style="color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; font-size: 1.2em; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; ${disabledStyle}">${btnText}</button>
+            <button id="pip-split-btn" style="color: white; border: none; padding: 14px 15px; border-radius: 8px; font-weight: bold; font-size: 1.3em; line-height: 1.3; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; margin-top: 5px; ${disabledStyle}">${btnText}</button>
         `;
     } else {
         html += `<div style="font-size: 1.5em; color: #4caf50; font-weight: bold;">🎉 RIDE COMPLETE!</div>`;
