@@ -127,7 +127,7 @@ function toggleDOMOverlay() {
     }
 }
 
-// Mobile/DOM Overlay Render
+{// Mobile/DOM Overlay Render
 function renderCockpitAction() {
     const cockpitZone = document.getElementById('cockpit-active-segment');
     if (!cockpitZone || !isCockpitMode) return;
@@ -142,17 +142,17 @@ function renderCockpitAction() {
         const actualSplitSecs = actualCumSecData[prevIndex] - prevPrevCumSec;
 
         html += `
-            <div style="font-size: 0.9em; color: #64748b; margin-bottom: 8px; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+            <div style="font-size: 0.85em; color: #64748b; margin-bottom: 4px; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
                 🔙 Prev: ${prevSeg.name} | Done: ${formatTime(actualSplitSecs)} (Target: ${prevSeg.targetPower}W)
             </div>`;
     } else {
         html += `
-            <div style="font-size: 0.9em; color: #64748b; margin-bottom: 8px; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+            <div style="font-size: 0.85em; color: #64748b; margin-bottom: 4px; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
                 🏁 Awaiting First Split...
             </div>`;
     }
 
-    // 2. CURRENT SEGMENT & BUTTON (Removed "Up Next" redundancy)
+    // 2. CURRENT SEGMENT & BUTTON
     if (currentActiveIndex < activeSegments.length) {
         const currSeg = activeSegments[currentActiveIndex];
         const prevTargetCumSec = currentActiveIndex > 0 ? activeSegments[currentActiveIndex-1].targetCumSec : 0;
@@ -162,20 +162,20 @@ function renderCockpitAction() {
         const btnText = !startTime ? "Waiting to Start..." : `Split: ${currSeg.name}`;
 
         html += `
-            <div style="font-size: 1.2em; color: var(--target-blue); font-weight: bold; margin-top: 10px; margin-bottom: 15px;">
+            <div style="font-size: 1.1em; color: var(--target-blue); font-weight: bold; margin-top: 6px; margin-bottom: 8px;">
                 🎯 Target: ${formatTime(targetSegSec)} @ ${currSeg.targetPower}W
             </div>
-            <button class="split-btn" ${disabledState} onclick="recordSplit(${currentActiveIndex})" style="width: 100%; padding: 20px; font-size: 1.5em; border-radius: 12px; font-weight: bold; border: none; color: white;">${btnText}</button>
+            <button class="split-btn" ${disabledState} onclick="recordSplit(${currentActiveIndex})" style="width: 100%; padding: 12px; font-size: 1.3em; border-radius: 10px; font-weight: bold; border: none; color: white;">${btnText}</button>
         `;
     } else {
-        html += `<div style="font-size: 2em; color: var(--ahead-green); font-weight: bold; margin-top: 10px;">🎉 RIDE COMPLETE!</div>`;
+        html += `<div style="font-size: 1.5em; color: var(--ahead-green); font-weight: bold; margin-top: 10px;">🎉 RIDE COMPLETE!</div>`;
     }
 
     // 3. UNDO BUTTON
     if (currentActiveIndex > 0 && startTime) {
         const lastSegmentName = activeSegments[currentActiveIndex - 1].name;
-        html += `<div style="margin-top: 25px;">
-                    <button class="undo-btn" onclick="undoSplit(${currentActiveIndex - 1})" style="background: none; border: 1px solid #94a3b8; color: #94a3b8; padding: 10px 20px; font-size: 1.1em; border-radius: 8px; cursor: pointer;">↺ Undo: ${lastSegmentName}</button>
+        html += `<div style="margin-top: 12px;">
+                    <button class="undo-btn" onclick="undoSplit(${currentActiveIndex - 1})" style="background: none; border: 1px solid #94a3b8; color: #94a3b8; padding: 8px 16px; font-size: 1em; border-radius: 8px; cursor: pointer;">↺ Undo: ${lastSegmentName}</button>
                  </div>`;
     }
     cockpitZone.innerHTML = html;
@@ -197,17 +197,17 @@ function renderPipAction() {
             
             header.innerHTML = `🔙 Prev: ${prevSeg.name} | Done: ${formatTime(actualSplitSecs)} (Target: ${prevSeg.targetPower}W)`;
             header.style.color = '#94a3b8';
-            header.style.fontSize = '0.9em';
+            header.style.fontSize = '0.85em';
         } else {
             header.innerHTML = `🏁 Awaiting First Split...`;
             header.style.color = '#94a3b8';
-            header.style.fontSize = '0.9em';
+            header.style.fontSize = '0.85em';
         }
     }
 
     let html = '';
     
-    // 2. Current Segment & Button (Removed "Up Next" redundancy)
+    // 2. Current Segment & Button
     if (currentActiveIndex < activeSegments.length) {
         const currSeg = activeSegments[currentActiveIndex];
         const prevTargetCumSec = currentActiveIndex > 0 ? activeSegments[currentActiveIndex-1].targetCumSec : 0;
@@ -217,18 +217,18 @@ function renderPipAction() {
         const btnText = !startTime ? "Waiting to Start..." : `Split: ${currSeg.name}`;
 
         html += `
-            <div style="font-size: 1.1em; color: #3daee9; font-weight: bold; margin-bottom: 12px; margin-top: 5px;">🎯 Target: ${formatTime(targetSegSec)} @ ${currSeg.targetPower}W</div>
-            <button id="pip-split-btn" style="color: white; border: none; padding: 15px 20px; border-radius: 8px; font-weight: bold; font-size: 1.3em; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; ${disabledStyle}">${btnText}</button>
+            <div style="font-size: 1em; color: #3daee9; font-weight: bold; margin-bottom: 8px; margin-top: 4px;">🎯 Target: ${formatTime(targetSegSec)} @ ${currSeg.targetPower}W</div>
+            <button id="pip-split-btn" style="color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; font-size: 1.2em; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; ${disabledStyle}">${btnText}</button>
         `;
     } else {
-        html += `<div style="font-size: 1.8em; color: #4caf50; font-weight: bold;">🎉 RIDE COMPLETE!</div>`;
+        html += `<div style="font-size: 1.5em; color: #4caf50; font-weight: bold;">🎉 RIDE COMPLETE!</div>`;
     }
 
     // 3. Undo Button
     if (currentActiveIndex > 0 && startTime) {
         const lastSegmentName = activeSegments[currentActiveIndex - 1].name;
-        html += `<div style="margin-top: 15px;">
-                    <button id="pip-undo-btn" style="background: none; border: 1px solid #94a3b8; color: #94a3b8; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: transform 0.1s;">↺ Undo: ${lastSegmentName}</button>
+        html += `<div style="margin-top: 10px;">
+                    <button id="pip-undo-btn" style="background: none; border: 1px solid #94a3b8; color: #94a3b8; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.85em; transition: transform 0.1s;">↺ Undo: ${lastSegmentName}</button>
                  </div>`;
     }
 
