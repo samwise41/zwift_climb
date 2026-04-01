@@ -79,12 +79,12 @@ async function toggleCockpitMode() {
                 height: 280
             });
 
-            // Reduced margin-bottom on pip-main-delta from 20px to 5px
+            // FIX: Shrunk timer font, tightened padding, added overflow: hidden
             pipWindow.document.body.innerHTML = `
-                <div style="background-color: #0f172a; color: white; height: 100vh; width: 100vw; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; position: absolute; top: 0; left: 0;">
-                    <div id="pip-header" style="font-size: 1.2em; color: #3daee9; margin-bottom: 5px; text-align: center; font-weight: bold;">${currentClimb ? currentClimb.name : 'Climb Pacer'}</div>
-                    <div id="pip-timer" style="font-size: 4.5em; font-weight: bold; font-variant-numeric: tabular-nums; line-height: 1; margin: 5px 0;">${document.getElementById('timer').innerText}</div>
-                    <div id="pip-main-delta" style="font-size: 2em; font-weight: bold; margin-bottom: 5px;">${document.getElementById('main-delta').innerText}</div>
+                <div style="background-color: #0f172a; color: white; height: 100vh; width: 100vw; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px 10px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; position: absolute; top: 0; left: 0; overflow: hidden;">
+                    <div id="pip-header" style="font-size: 0.9em; color: #94a3b8; margin-bottom: 2px; text-align: center; font-weight: bold; width: 100%; line-height: 1.2;">${currentClimb ? currentClimb.name : 'Climb Pacer'}</div>
+                    <div id="pip-timer" style="font-size: 3.5em; font-weight: bold; font-variant-numeric: tabular-nums; line-height: 1; margin: 4px 0;">${document.getElementById('timer').innerText}</div>
+                    <div id="pip-main-delta" style="font-size: 1.5em; font-weight: bold; margin-bottom: 5px;">${document.getElementById('main-delta').innerText}</div>
                     <div id="pip-action-zone" style="width: 100%; text-align: center;"></div>
                 </div>
             `;
@@ -197,19 +197,20 @@ function renderPipAction() {
             const prevPrevCumSec = prevIndex > 0 ? actualCumSecData[prevIndex - 1] : 0;
             const actualSplitSecs = actualCumSecData[prevIndex] - prevPrevCumSec;
             
-            header.innerHTML = `🔙 Prev: ${prevSeg.name} | Done: ${formatTime(actualSplitSecs)} (Target: ${prevSeg.targetPower}W)`;
+            // FIX: Stacked the Prev text into two tighter lines to save horizontal wrap space
+            header.innerHTML = `🔙 Prev: ${prevSeg.name}<br><span style="font-size: 0.85em; font-weight: normal;">Done: ${formatTime(actualSplitSecs)} (Target: ${prevSeg.targetPower}W)</span>`;
             header.style.color = '#94a3b8';
-            header.style.fontSize = '0.85em';
+            header.style.fontSize = '0.9em';
         } else {
             header.innerHTML = `🏁 Awaiting First Split...`;
             header.style.color = '#94a3b8';
-            header.style.fontSize = '0.85em';
+            header.style.fontSize = '0.9em';
         }
     }
 
     let html = '';
     
-    // 2. Current Segment & BIGGER BUTTON WITH NESTED TARGET
+    // 2. Current Segment & Button
     if (currentActiveIndex < activeSegments.length) {
         const currSeg = activeSegments[currentActiveIndex];
         const prevTargetCumSec = currentActiveIndex > 0 ? activeSegments[currentActiveIndex-1].targetCumSec : 0;
@@ -217,13 +218,13 @@ function renderPipAction() {
 
         const disabledStyle = !startTime ? 'opacity: 0.5; cursor: not-allowed; background-color: #334155;' : 'cursor: pointer; background-color: #fc6719;';
         
-        // Multi-line button text
+        // FIX: Shrunk the target font size inside the button slightly
         const btnText = !startTime 
             ? "Waiting to Start..." 
             : `Split: ${currSeg.name}<br><span style="font-size: 0.8em; font-weight: normal; color: #f8fafc;">🎯 Target: ${currSeg.targetPower}W for ${formatTime(targetSegSec)}</span>`;
 
         html += `
-            <button id="pip-split-btn" style="color: white; border: none; padding: 14px 15px; border-radius: 8px; font-weight: bold; font-size: 1.3em; line-height: 1.3; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; margin-top: 5px; ${disabledStyle}">${btnText}</button>
+            <button id="pip-split-btn" style="color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; font-size: 1.1em; line-height: 1.2; width: 100%; max-width: 280px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; margin-top: 2px; ${disabledStyle}">${btnText}</button>
         `;
     } else {
         html += `<div style="font-size: 1.5em; color: #4caf50; font-weight: bold;">🎉 RIDE COMPLETE!</div>`;
@@ -232,8 +233,9 @@ function renderPipAction() {
     // 3. Undo Button
     if (currentActiveIndex > 0 && startTime) {
         const lastSegmentName = activeSegments[currentActiveIndex - 1].name;
-        html += `<div style="margin-top: 10px;">
-                    <button id="pip-undo-btn" style="background: none; border: 1px solid #94a3b8; color: #94a3b8; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.85em; transition: transform 0.1s;">↺ Undo: ${lastSegmentName}</button>
+        // FIX: Reduced padding and top margin to tuck it perfectly under the main button
+        html += `<div style="margin-top: 6px;">
+                    <button id="pip-undo-btn" style="background: none; border: 1px solid #94a3b8; color: #94a3b8; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8em; transition: transform 0.1s;">↺ Undo: ${lastSegmentName}</button>
                  </div>`;
     }
 
